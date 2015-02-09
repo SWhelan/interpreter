@@ -9,14 +9,25 @@
 (define decideState
   (lambda (l state)
     (cond
-     ((null? l) state)
-     ;((list? (car l)) (mergeState (decideState (car l) (mergeState state (decideState (cdr l) state)))
-                                   ;(decideState (cdr l) (mergeState state (decideState (car l) state)))))
-     ((list? (car l)) (decideState (cdr l) (decideState (car l) state)))
+     ((null? l) '())
+     ((list? (car l)) (mergeState (decideState (car l) (mergeState state (decideState (cdr l) state)))
+                                   (decideState (cdr l) (mergeState state (decideState (car l) state)))))
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
      ((eq? (car l) 'if) (stateIf l state))
      (else (stateAssign l state)))))
+
+(define mergeState
+  (lambda (s1 s2)
+    (cond
+      ((null? s2) s1)
+      ((or (null? (car s2)) (null? (cdr s2))) s1)
+      (else (mergeState 
+             (Add (car(car s2)) (car (car (cdr s2))) s1)
+             (cons
+              (cdr (car s2))
+              (cons (cdr (car(cdr s2))) '())))))))
+              
 
 (define stateReturn
   (lambda (l state)
