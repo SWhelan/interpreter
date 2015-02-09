@@ -10,8 +10,8 @@
   (lambda (l state)
     (cond
      ((null? l) '())
-     ((list? (car l)) (mergeState (decideState (car l) state) (decideState (cdr l) state)))
-     ((and (list? (car l)) (list? (cdr l))) (decideState (cdr l) state))
+     ((list? (car l)) (mergeState (decideState (car l) (mergeState state (decideState (cdr l) state)))
+                                   (decideState (cdr l) (mergeState state (decideState (car l) state)))))
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
      ((eq? (car l) 'if) (stateIf l state))
@@ -110,8 +110,6 @@
   (lambda (expression state)
        (cond
          ((number? expression) expression)
-         ((not (pair? expression)) (lookup expression state))
-         ((list? expression) (getValue (car expression) state))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))
          ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state)
@@ -123,6 +121,7 @@
          ((and (eq? '- (operator expression))(not (null? (rightoperand expression)))) (- (getValue (leftoperand expression) state)
                                                    (getValue (rightoperand expression) state)))
          ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
+         ((eq? '= (operator expression)) (getValue (rightoperand expression) state))
          
          
          ((eq? '!= (operator expression))  (getTruth expression state))
