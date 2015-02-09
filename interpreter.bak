@@ -20,7 +20,6 @@
 (define mergeState
   (lambda (s1 s2)
     (cond
-      ((null? s2) s1)
       ((or (null? (car s2)) (null? (cdr s2))) s1)
       (else (mergeState 
              (Add (car(car s2)) (car (car (cdr s2))) s1)
