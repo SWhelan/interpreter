@@ -30,8 +30,9 @@
 (define stateIf
   (lambda (l state)
     (cond
-      ((getTruth (car (cdr l)) state) (decideState (cdr (cdr l))))
-      (else (decideState (cdr (cdr (cdr l))))))))
+      ((getTruth (car (cdr l)) state) (decideState(car (cdr (cdr l))) state))
+      (else (decideState (car (cdr (cdr (cdr l)))) state)))))
+      
 
 (define stateAssign
   (lambda (l state)
