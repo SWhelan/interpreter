@@ -19,6 +19,8 @@
 (define stateReturn
   (lambda (l state)
     (cond
+      ((eq? (getValue (cdr l) state) '#t) (Add 'return 'true state))
+      ((eq? (getValue (cdr l) state) '#f) (Add 'return 'false state))
       (else (Add 'return (getValue (cdr l) state) state)))))
 
 (define stateDeclaration
