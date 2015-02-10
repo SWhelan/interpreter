@@ -102,6 +102,7 @@
        (cond
         ; ((null? expression) '())
          ((number? expression) expression)
+         ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
          ((atom? expression) (lookup expression state))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))

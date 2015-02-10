@@ -1,8 +1,6 @@
 var x = 10;
-var y = 20;
-var z = 20 >= 10;
-if (!z || false)
-  z = !z;
+var y;
+if (x < y && (x % 2) == 0)
+  return 100;
 else
-  z = z;
-return z;
+  return 200;
