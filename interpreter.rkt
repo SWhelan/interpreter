@@ -25,7 +25,7 @@
   (lambda (l state)
     (cond
       ((null? (cdr (cdr l))) (Add (car(cdr l)) 'declared state))
-      (else (Add (cdr l) (getValue (cdr (cdr l)) state) state)))))
+      (else (Add (car (cdr l)) (getValue (cdr (cdr l)) state) state)))))
 
 (define stateIf
   (lambda (l state)
@@ -111,7 +111,7 @@
                                                    (getValue (rightoperand expression) state)))
          ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
          ((eq? '= (operator expression)) (getValue (rightoperand expression) state))
-         
+         ((eq? 'var (operator expression)) (getValue (rightoperand expression) state))
          
          ((eq? '!= (operator expression))  (getTruth expression state))
          ((eq? '== (operator expression))  (getTruth expression state))
