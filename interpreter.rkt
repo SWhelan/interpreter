@@ -26,6 +26,7 @@
 (define stateDeclaration
   (lambda (l state)
     (cond
+      ((doesExist (car (cdr l)) state) (error 'variableAlreadDeclared))
       ((null? (cdr (cdr l))) (Add (car(cdr l)) 'declared state))
       (else (Add (car (cdr l)) (getValue (cdr (cdr l)) state) state)))))
 
@@ -35,6 +36,12 @@
       ((getTruth (car (cdr l)) state) (decideState(car (cdr (cdr l))) state))
       ((null? (cdr (cdr (cdr l)))) state)
       (else (decideState (car (cdr (cdr (cdr l)))) state)))))
+
+(define doesExist
+  (lambda (name state)
+    (cond
+     ((null? (car state)) (#f)
+     (else #t)))))
       
 
 (define stateAssign
