@@ -3,15 +3,13 @@
 
 (define interpret
   (lambda (filename)
-    (decideState (parser filename) '((true false) (#t #f)))))
+    (decideState (parser filename) '((true false return) (#t #f 'noReturnValueSet)))))
     ;(parser filename)))
 
 (define decideState
   (lambda (l state)
     (cond
-     ((null? l) state)
-     ;((list? (car l)) (mergeState (decideState (car l) (mergeState state (decideState (cdr l) state)))
-                                   ;(decideState (cdr l) (mergeState state (decideState (car l) state)))))
+     ((null? l) (lookup 'return state))
      ((list? (car l)) (decideState (cdr l) (decideState (car l) state)))
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
@@ -21,13 +19,12 @@
 (define stateReturn
   (lambda (l state)
     (cond
-      ((list? (car l)) (decideState (cdr l)))
-      (else (getValue (cdr l) state)))))
+      (else (Add 'return (getValue (cdr l) state) state)))))
 
 (define stateDeclaration
   (lambda (l state)
     (cond
-      ((null? (cdr (cdr l))) (Add (car(cdr l)) 'error state))
+      ((null? (cdr (cdr l))) (Add (car(cdr l)) 'declared state))
       (else (Add (cdr l) (getValue (cdr (cdr l)) state) state)))))
 
 (define stateIf
@@ -39,6 +36,7 @@
 (define stateAssign
   (lambda (l state)
     (cond
+      ((eq? (lookup (leftoperand l) state) 'declared) (Add (car(cdr l)) (getValue l state) state))
       (else (Add (car(cdr l)) (getValue l state) state)))))
 
 (define lookup
@@ -98,7 +96,9 @@
 (define getValue
   (lambda (expression state)
        (cond
+        ; ((null? expression) '())
          ((number? expression) expression)
+         ((atom? expression) (lookup expression state))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))
          ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state)
@@ -122,6 +122,7 @@
          ((eq? '! (operator expression))  (getTruth expression state))
          ((eq? '&& (operator expression))  (getTruth expression state))
          ((eq? '|| (operator expression))  (getTruth expression state))
+         ((null? (cdr expression)) (getValue (car expression) state))
         (else (error expression)))
        ))
 
@@ -152,3 +153,7 @@
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
+
+(define atom?
+  (lambda (x)
+    (and (not (pair? x)) (not (null? x)))))
