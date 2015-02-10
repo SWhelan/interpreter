@@ -31,6 +31,7 @@
   (lambda (l state)
     (cond
       ((getTruth (car (cdr l)) state) (decideState(car (cdr (cdr l))) state))
+      ((null? (cdr (cdr (cdr l)))) state)
       (else (decideState (car (cdr (cdr (cdr l)))) state)))))
       
 
@@ -108,7 +109,8 @@
                                                     (getValue (rightoperand expression) state)))
          ((eq? '* (operator expression)) (* (getValue (leftoperand expression) state)
                                                    (getValue (rightoperand expression) state)))
-         ((and (eq? '- (operator expression))(not (null? (rightoperand expression)))) (- (getValue (leftoperand expression) state)
+         ((and (eq? '- (operator expression))(not (null? (cdr (cdr expression))))) 
+          (- (getValue (leftoperand expression) state)
                                                    (getValue (rightoperand expression) state)))
          ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
          ((eq? '= (operator expression)) (getValue (rightoperand expression) state))
