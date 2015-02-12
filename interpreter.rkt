@@ -3,13 +3,17 @@
 
 (define interpret
   (lambda (filename)
-    (decideState (parser filename) '((true false return) (#t #f 'noReturnValueSet)))))
+    (lookup 'return (decideState (parser filename) (initialState)))))
     ;(parser filename)))
+
+(define initialState
+  (lambda ()
+      '((true false return) (#t #f 'noReturnValueSet))))
 
 (define decideState
   (lambda (l state)
     (cond
-     ((null? l) (lookup 'return state))
+     ((null? l) state)
      ((list? (car l)) (decideState (cdr l) (decideState (car l) state)))
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))

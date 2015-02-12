@@ -1,4 +1,4 @@
 var x;
 var y;
-var z = x = y = 10;
-return x + y + z;
+x = 10;
+return 10;
