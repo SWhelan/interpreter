@@ -40,8 +40,9 @@
 (define doesExist
   (lambda (name state)
     (cond
-     ((null? (car state)) (#f)
-     (else #t)))))
+     ((null? (car state)) #f)
+     ((eq? (car (car state)) name) #t)
+     (else (doesExist name (cons (cdr (car state)) (cons(cdr(car(cdr state))) '())))))))
       
 
 (define stateAssign
