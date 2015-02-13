@@ -14,11 +14,13 @@
   (lambda (l state)
     (cond
      ((null? l) state)
+     ((atom? l) state)
      ((list? (car l)) (decideState (cdr l) (decideState (car l) state)))
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
      ((eq? (car l) 'if) (stateIf l state))
      ((eq? (car l) '=) (stateAssign l state))
+     ((not (null? (cdr l)) (decideState (cdr l) state)))
      (else state)
      )))
 
@@ -32,9 +34,9 @@
 (define stateDeclaration
   (lambda (l state)
     (cond
-      ((doesExist (car (cdr l)) state) (error 'variableAlreadyDeclared))
-      ((null? (cdr (cdr l))) (Add (car(cdr l)) 'declared state))
-      (else (Add (car (cdr l)) (getValue (cdr (cdr l)) state) (decideState (cdr (cdr l)) state))))))
+      ((doesExist (leftoperand l) state) (error 'variableAlreadyDeclared))
+      ((null? (cdr (cdr l))) (Add (leftoperand l) 'declared state))
+      (else (Add (leftoperand l) (getValue (rightoperand l) state) (decideState (rightoperand l) state))))))
 
 (define stateIf
   (lambda (l state)
@@ -47,74 +49,51 @@
   (lambda (name state)
     (cond
      ((null? (car state)) #f)
-     ((eq? (car (car state)) name) #t)
-     (else (doesExist name (cons (cdr (car state)) (cons(cdr(car(cdr state))) '())))))))
-      
+     ((eq? (car (variableList state)) name) #t)
+     (else (doesExist name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+
+(define variableList
+  (lambda (state)
+    (car state)))
+
+(define valueList
+  (lambda (state)
+    (car(cdr state))))
 
 (define stateAssign
   (lambda (l state)
     (cond
-      ((eq? (lookup (leftoperand l) state) 'declared) (Add (car(cdr l)) (getValue l state) (decideState (cdr(cdr l)) state)))
-      (else (Add (car(cdr l)) (getValue l state) (decideState (cdr (cdr l)) state))))))
+      ((eq? (lookup (leftoperand l) state) 'declared) (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state)))
+      (else (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state))))))
 
 (define lookup
   (lambda (name state)
     (cond
      ((null? (car state)) (error 'lookupvariableNotDecalared))
-     ((eq? (car (car state)) name) (car (car (cdr state))))
-     (else (lookup name (cons (cdr (car state)) (cons(cdr(car(cdr state))) '())))))))
-
-;(define lookup
-;  (lambda (name state)
-;    (cond
-;     ((null? (car state)) (error 'youmessedup))
-;     ((eq? (car (car state)) name) (car (car (cdr state))))
-;     (else (lookup name (cons (remainingVariables state) (remainingValues state)))))))
-;
-;(define remainingVariables (cons cdr (cons car '())))
-;(define remainingValues (cons cdr (cons car (cons cdr '()))))
-
-;(define Add
- ; (lambda (name value state)
-  ;  (cons (append (car state) (cons name '())) (cons (append (car (cdr state)) (cons value '())) '()))
-
+     ((eq? (car (variableList state)) name) (car (valueList state)))
+     (else (lookup name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
 
 (define Add
   (lambda (name value state)
     (cond
      ((null? (car state))
-             (cons (append (car state) (cons name '()))
+             (cons (append (variableList state) (cons name '()))
                    (cons 
-                    (append (car (cdr state)) (cons value '()))
+                    (append (valueList state) (cons value '()))
                     '())))
      ((eq? (car (car state)) name) 
        (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
      (else (cons 
-             (cons (car (car state)) (car (Add name value (cons (cdr (car state)) (cons(cdr(car(cdr state))) '()))) )); (x z)
+             (cons (car (variableList state)) (car (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
              (cons
-             (cons (car(car(cdr state))) (car (cdr (Add name value (cons (cdr (car state)) (cons(cdr(car(cdr state))) '()))) )))
+             (cons (car(valueList state)) (car (cdr (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
              '())
              )
             ))))
 
-(define Remove
-  (lambda (name state)
-    (cond
-      ((null? (car state)) state)
-      ((eq? (car(car state)) name) (cons (cdr (car state))(cons (cdr(car(cdr state))) '())))
-      (else (cons 
-             (cons (car (car state)) (car (Remove name (cons (cdr (car state)) (cons(cdr(car(cdr state))) '()))))); (x z)
-             (cons
-             (cons (car(car(cdr state))) (car (cdr (Remove name (cons (cdr (car state)) (cons(cdr(car(cdr state))) '()))))))
-             '())
-             )
-            )))) ; don't delete this
-
-
 (define getValue
   (lambda (expression state)
        (cond
-        ; ((null? expression) '())
          ((number? expression) expression)
          ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
          ((atom? expression) (lookup expression state))
