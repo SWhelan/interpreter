@@ -1,15 +1,21 @@
+; Israel Hill idh
+; Michael Rosenfield mer95
+; Sarah Whelan slw96
+
 (load "simpleParser.scm")
 (load "lex.scm")
 
+;gets the parse tree of the input file and interprets the program
 (define interpret
   (lambda (filename)
     (lookup 'return (decideState (parser filename) (initialState)))))
-    ;(parser filename)))
 
+;the default state
 (define initialState
   (lambda ()
       '((true false return) (#t #f 'noReturnValueSet))))
 
+;decide state determines and changes the state of an statement
 (define decideState
   (lambda (l state)
     (cond
@@ -24,6 +30,7 @@
      (else state)
      )))
 
+;handles return statements
 (define stateReturn
   (lambda (l state)
     (cond
@@ -31,6 +38,7 @@
       ((eq? (getValue (cdr l) state) '#f) (Add 'return 'false state))
       (else (Add 'return (getValue (cdr l) state) (decideState (cdr l) state))))))
 
+;handles declarations
 (define stateDeclaration
   (lambda (l state)
     (cond
@@ -38,6 +46,7 @@
       ((null? (cdr (cdr l))) (Add (leftoperand l) 'declared state))
       (else (Add (leftoperand l) (getValue (rightoperand l) state) (decideState (rightoperand l) state))))))
 
+;handles if statements
 (define stateIf
   (lambda (l state)
     (cond
@@ -45,52 +54,14 @@
       ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state))
       (else (decideState (car (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state))))))
 
-(define doesExist
-  (lambda (name state)
-    (cond
-     ((null? (car state)) #f)
-     ((eq? (car (variableList state)) name) #t)
-     (else (doesExist name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
-
-(define variableList
-  (lambda (state)
-    (car state)))
-
-(define valueList
-  (lambda (state)
-    (car(cdr state))))
-
+;handles assignments
 (define stateAssign
   (lambda (l state)
     (cond
       ((eq? (lookup (leftoperand l) state) 'declared) (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state)))
       (else (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state))))))
 
-(define lookup
-  (lambda (name state)
-    (cond
-     ((null? (car state)) (error 'lookupvariableNotDecalared))
-     ((eq? (car (variableList state)) name) (car (valueList state)))
-     (else (lookup name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
-
-(define Add
-  (lambda (name value state)
-    (cond
-     ((null? (car state))
-             (cons (append (variableList state) (cons name '()))
-                   (cons 
-                    (append (valueList state) (cons value '()))
-                    '())))
-     ((eq? (car (car state)) name) 
-       (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
-     (else (cons 
-             (cons (car (variableList state)) (car (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
-             (cons
-             (cons (car(valueList state)) (car (cdr (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
-             '())
-             )
-            ))))
-
+;returns the value of an expression
 (define getValue
   (lambda (expression state)
        (cond
@@ -108,7 +79,7 @@
          ((and (eq? '- (operator expression))(not (null? (cdr (cdr expression))))) 
           (- (getValue (leftoperand expression) state)
                                                    (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
-         ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
+         ((eq? '- (operator expression)) (- (getValue (leftoperand expression) (decideState (leftoperand expression) state))))
          ((eq? '= (operator expression)) (getValue (rightoperand expression) state))
          ((eq? 'var (operator expression)) (getValue (rightoperand expression) state))
          
@@ -125,34 +96,81 @@
         (else (error expression)))
        ))
 
+;evaluates boolean result of an expression
 (define getTruth
   (lambda (expression state)
     (cond
       ((number? expression) expression)
       ((not (pair? expression)) (lookup expression state))
       ((eq? '< (operator expression)) (< (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '> (operator expression)) (> (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '<= (operator expression)) (<= (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '>= (operator expression)) (>= (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '== (operator expression)) (eq? (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '!= (operator expression)) (not(eq? (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state))))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state)))))
       ((eq? '&& (operator expression)) (and (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
       ((eq? '|| (operator expression)) (or (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '! (operator expression))  (not(getValue (leftoperand expression) state)))
+                                         (getValue (rightoperand expression) (decideState (leftoperand expression) state))))
+      ((eq? '! (operator expression))  (not(getValue (leftoperand expression) (decideState (leftoperand expression) state))))
       )))
-      
+
+;lookup a variable's value in the current state
+(define lookup
+  (lambda (name state)
+    (cond
+     ((null? (car state)) (error 'lookupvariableNotDecalared))
+     ((eq? (car (variableList state)) name) (car (valueList state)))
+     (else (lookup name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+
+;add or update variables in the current state
+(define Add
+  (lambda (name value state)
+    (cond
+     ((null? (car state))
+             (cons (append (variableList state) (cons name '()))
+                   (cons 
+                    (append (valueList state) (cons value '()))
+                    '())))
+     ((eq? (car (car state)) name) 
+       (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
+     (else (cons 
+             (cons (car (variableList state)) (car (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
+             (cons
+             (cons (car(valueList state)) (car (cdr (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
+             '())
+             )
+            ))))
+ ;abstraction of operators     
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
 
+;checks if the input is an atom
 (define atom?
   (lambda (x)
     (and (not (pair? x)) (not (null? x)))))
+
+;checks if the given variable is declared/assigned in the current state
+(define doesExist
+  (lambda (name state)
+    (cond
+     ((null? (car state)) #f)
+     ((eq? (car (variableList state)) name) #t)
+     (else (doesExist name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+
+;get all the current variables in the state
+(define variableList
+  (lambda (state)
+    (car state)))
+
+;get all the current values of the associated variables in the state
+(define valueList
+  (lambda (state)
+    (car(cdr state))))
