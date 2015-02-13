@@ -18,28 +18,30 @@
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
      ((eq? (car l) 'if) (stateIf l state))
-     (else (stateAssign l state)))))
+     ((eq? (car l) '=) (stateAssign l state))
+     (else state)
+     )))
 
 (define stateReturn
   (lambda (l state)
     (cond
       ((eq? (getValue (cdr l) state) '#t) (Add 'return 'true state))
       ((eq? (getValue (cdr l) state) '#f) (Add 'return 'false state))
-      (else (Add 'return (getValue (cdr l) state) state)))))
+      (else (Add 'return (getValue (cdr l) state) (decideState (cdr l) state))))))
 
 (define stateDeclaration
   (lambda (l state)
     (cond
       ((doesExist (car (cdr l)) state) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (Add (car(cdr l)) 'declared state))
-      (else (Add (car (cdr l)) (getValue (cdr (cdr l)) state) state)))))
+      (else (Add (car (cdr l)) (getValue (cdr (cdr l)) state) (decideState (cdr (cdr l)) state))))))
 
 (define stateIf
   (lambda (l state)
     (cond
-      ((getTruth (car (cdr l)) state) (decideState(car (cdr (cdr l))) state))
-      ((null? (cdr (cdr (cdr l)))) state)
-      (else (decideState (car (cdr (cdr (cdr l)))) state)))))
+      ((getTruth (car (cdr l)) state) (decideState(car (cdr (cdr l))) (decideState (car (cdr l)) state)))
+      ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state))
+      (else (decideState (car (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state))))))
 
 (define doesExist
   (lambda (name state)
@@ -52,8 +54,8 @@
 (define stateAssign
   (lambda (l state)
     (cond
-      ((eq? (lookup (leftoperand l) state) 'declared) (Add (car(cdr l)) (getValue l state) state))
-      (else (Add (car(cdr l)) (getValue l state) state)))))
+      ((eq? (lookup (leftoperand l) state) 'declared) (Add (car(cdr l)) (getValue l state) (decideState (cdr(cdr l)) state)))
+      (else (Add (car(cdr l)) (getValue l state) (decideState (cdr (cdr l)) state))))))
 
 (define lookup
   (lambda (name state)
@@ -166,7 +168,7 @@
       ((eq? '|| (operator expression)) (or (getValue (leftoperand expression) state)
                                          (getValue (rightoperand expression) state)))
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression) state)))
-      )))   
+      )))
       
 (define operator car)
 (define leftoperand cadr)

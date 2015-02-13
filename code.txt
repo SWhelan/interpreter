@@ -1,4 +1,7 @@
 var x;
 var y;
-x = 10;
-return 10;
+x = y = 10;
+if ((x = x + 1) > y)
+  return x;
+else
+  return y;
