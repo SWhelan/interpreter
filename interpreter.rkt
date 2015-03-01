@@ -2,6 +2,8 @@
 ; Michael Rosenfield mer95
 ; Sarah Whelan slw96
 
+; Part 2
+
 (load "simpleParser.scm")
 (load "lex.scm")
 

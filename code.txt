@@ -1,3 +1,6 @@
-var z;
-z = 10;
-return z;
+var x;
+var y;
+if((x = 5 * (x = 6)) == (y = 3 + (y = 7)))
+return x;
+else
+return y;
