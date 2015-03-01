@@ -11,6 +11,7 @@
 (define interpret
   (lambda (filename)
     (lookup 'return (decideState (parser filename) (initialState)))))
+   ; (parser filename)))
 
 ;the default state
 (define initialState
@@ -27,6 +28,7 @@
      ((eq? (car l) 'return) (stateReturn l state))
      ((eq? (car l) 'var) (stateDeclaration l state))
      ((eq? (car l) 'if) (stateIf l state))
+     ((eq? (car l) 'begin) (stateBegin l (addLayer state)))
      ((eq? (car l) '=) (stateAssign l state))
      ((not (null? (cdr l))) (decideState (cdr l) state))
      (else state)
@@ -36,17 +38,17 @@
 (define stateReturn
   (lambda (l state)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (Add 'return 'true state))
-      ((eq? (getValue (cdr l) state) '#f) (Add 'return 'false state))
-      (else (Add 'return (getValue (cdr l) state) (decideState (cdr l) state))))))
+      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state))
+      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state))
+      (else (variable-handler 'return (getValue (cdr l) state) (decideState (cdr l) state))))))
 
 ;handles declarations
 (define stateDeclaration
   (lambda (l state)
     (cond
       ((doesExist (leftoperand l) state) (error 'variableAlreadyDeclared))
-      ((null? (cdr (cdr l))) (Add (leftoperand l) 'declared state))
-      (else (Add (leftoperand l) (getValue (rightoperand l) state) (decideState (rightoperand l) state))))))
+      ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state))
+      (else (variable-handler (leftoperand l) (getValue (rightoperand l) state) (decideState (rightoperand l) state))))))
 
 ;handles if statements
 (define stateIf
@@ -60,8 +62,17 @@
 (define stateAssign
   (lambda (l state)
     (cond
-      ((eq? (lookup (leftoperand l) state) 'declared) (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state)))
-      (else (Add (leftoperand l) (getValue l state) (decideState (rightoperand l) state))))))
+      ((eq? (lookup (leftoperand l) state) 'declared) (variable-handler (leftoperand l) (getValue l state) (decideState (rightoperand l) state)))
+      (else (variable-handler (leftoperand l) (getValue l state) (decideState (rightoperand l) state))))))
+
+;handles blocks/begin
+(define stateBegin
+  (lambda (l state)
+    (cond
+      ((null? l) state)
+      (else (stateBegin (cdr l) 
+                                    (decideState (car l) state))))))
+      ;(else (stateBegin (cdr l) state)))))
 
 ;returns the value of an expression
 (define getValue
@@ -123,16 +134,58 @@
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression) (decideState (leftoperand expression) state))))
       )))
 
-;lookup a variable's value in the current state
+
 (define lookup
   (lambda (name state)
     (cond
-     ((null? (car state)) (error 'lookupvariableNotDecalared))
+      ((null? state) (error 'lookupvariableNotDecalared))
+      ((not (null? (lookup-helper name (car state)))) (lookup-helper name (car state)))
+      (else (lookup name (cdr state))))))
+
+;lookup a variable's value in the current state
+(define lookup-helper
+  (lambda (name state)
+    (cond
+     ((null? (car state)) '())
      ((eq? (car (variableList state)) name) (car (valueList state)))
-     (else (lookup name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+     (else (lookup-helper name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+
+(define variable-handler
+  (lambda (name value state)
+    (if (doesExist name state) (Update name value state)
+        (Add name value state))))
+
+(define Update
+ (lambda (name value state)
+  (cond 
+     ((null? state) '())
+      ((and (atom? (car (car state))) (doesExist-helper name state)) (cons (Update-helper name value state) (cdr state)))
+      ((and (list? (car (car state))) (doesExist-helper name (car state))) (cons (Update-helper name value (car state)) (cdr state)))
+      (else (cons (car state) (Update name value (cdr state)))))))
+
+(define Update-helper
+  (lambda (name value state)
+    (cond
+      ((null? (car state)) '())
+      ((eq? (car (variableList state)) name) (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
+      (else (cons 
+             (cons (car (variableList state)) (car (Update-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
+             (cons
+              (cons (car(valueList state)) (car (cdr (Update-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
+              '())
+             )
+            ))))
+
+(define Add
+  (lambda (name value state)
+    (cond 
+      ((atom? (car state))(Add-helper name value state))
+      ((list? (car state))(cons (Add-helper name value (car state)) (cdr state)))
+      (else (Add-helper name value state)))))
+          
 
 ;add or update variables in the current state
-(define Add
+(define Add-helper
   (lambda (name value state)
     (cond
      ((null? (car state))
@@ -140,15 +193,14 @@
                    (cons 
                     (append (valueList state) (cons value '()))
                     '())))
-     ((eq? (car (car state)) name) 
-       (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
      (else (cons 
-             (cons (car (variableList state)) (car (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
+             (cons (car (variableList state)) (car (Add-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
              (cons
-             (cons (car(valueList state)) (car (cdr (Add name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
+             (cons (car(valueList state)) (car (cdr (Add-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
              '())
              )
             ))))
+
  ;abstraction of operators     
 (define operator car)
 (define leftoperand cadr)
@@ -159,13 +211,21 @@
   (lambda (x)
     (and (not (pair? x)) (not (null? x)))))
 
-;checks if the given variable is declared/assigned in the current state
 (define doesExist
+  (lambda (name state)
+    (cond
+      ((null? state) #f)
+      ((atom? (car state)) (doesExist-helper name state))
+      ((list? (car state)) (or (doesExist name (car state)) (doesExist name (cdr state))))
+      (else (doesExist-helper name state)))))
+
+;checks if the given variable is declared/assigned in the current state
+(define doesExist-helper
   (lambda (name state)
     (cond
      ((null? (car state)) #f)
      ((eq? (car (variableList state)) name) #t)
-     (else (doesExist name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+     (else (doesExist-helper name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
 
 ;get all the current variables in the state
 (define variableList
@@ -176,3 +236,8 @@
 (define valueList
   (lambda (state)
     (car(cdr state))))
+
+;adds a layer to the current state
+(define addLayer
+  (lambda (state)
+    (cons (initialState)(cons state '()))))
