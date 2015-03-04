@@ -72,7 +72,6 @@
   (lambda (l state return)
     (cond
       ((null? l) state)
-;      (else (stateBegin (cdr l) (decideState (car l) state))))))
       (else (decideState (cdr l) state (lambda (v)(stateBegin (cdr l) v return)))))))
 
 ;handles while loops
@@ -150,6 +149,14 @@
       ((null? state) (error 'lookvariableNotDeclared))
       ((atom? (car (car state))) (lookup-helper name state))
       ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper name (car state)))
+      (else (lookup name (cdr state))))))
+
+(define lookup
+  (lambda (name state)
+    (cond
+      ((null? state) (error 'lookvariableNotDeclaed))
+      ((atom? (car (car state))) (lookup-helper name state))
+      ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper (car state)))
       (else (lookup name (cdr state))))))
 
 ;lookup a variable's value in the current state
