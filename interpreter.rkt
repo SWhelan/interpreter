@@ -50,7 +50,7 @@
 (define stateDeclaration
   (lambda (l state return continue break)
     (cond
-      ((doesExist (leftoperand l) state) (error 'variableAlreadyDeclared))
+      ((not (null? (lookup (leftoperand l) state))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
       (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break)))))
 
@@ -58,7 +58,7 @@
 (define stateAssign
   (lambda (l state return continue break)
     (cond
-      ((not (doesExist (leftoperand l) state)) (error 'usingBeforeDeclaring))
+      ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaring))
       ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (variable-handler (leftoperand l) (getValue l v) v return)) continue break))
       (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue l v) v return)) continue break)))))
 
@@ -151,7 +151,7 @@
 (define lookup
   (lambda (name state)
     (cond
-      ((null? state) (error 'lookupVariableNotDeclared))
+      ((null? state) '())
       ((atom? (car (car state)))(lookup-helper name state))
       ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper name (car state)))
       (else (lookup name (cdr state))))))
@@ -166,15 +166,15 @@
 
 (define variable-handler
   (lambda (name value state return)
-    (if (doesExist name state) (return (Update name value state))
+    (if (not (null? (lookup name state))) (return (Update name value state))
         (return(Add name value state)))))
 
 (define Update
  (lambda (name value state)
   (cond 
      ((null? state) '())
-      ((and (atom? (car (car state))) (doesExist-helper name state)) (Update-helper name value state))
-      ((and (list? (car (car state))) (doesExist-helper name (car state))) (cons (Update-helper name value (car state)) (cdr state)))
+      ((and (atom? (car (car state))) (not (null? (lookup-helper name state)))) (Update-helper name value state))
+      ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (cons (Update-helper name value (car state)) (cdr state)))
       (else (cons (car state) (Update name value (cdr state)))))))
 
 (define Update-helper
@@ -224,22 +224,6 @@
 (define atom?
   (lambda (x)
     (and (not (pair? x)) (not (null? x)))))
-
-(define doesExist
-  (lambda (name state)
-    (cond
-      ((null? state) #f)
-      ((atom? (car (car state))) (doesExist-helper name state))
-      ((list? (car state)) (or (doesExist name (car state)) (doesExist name (cdr state))))
-      (else (doesExist-helper name state)))))
-
-;checks if the given variable is declared/assigned in the current state
-(define doesExist-helper
-  (lambda (name state)
-    (cond
-     ((null? (car state)) #f)
-     ((eq? (firstVariable state) name) #t)
-     (else (doesExist-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
  
 ;get all but the first variable in the state
 (define remainingVariables
