@@ -10,8 +10,8 @@
 ;gets the parse tree of the input file and interprets the program
 (define interpret
   (lambda (filename)
-    (lookup 'return (decideState (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v)))))
-    ;(decideState (parser filename) (initialState) (lambda (v) v))))
+    (lookup 'return (decideState (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)))))
+    ;(decideState (parser filename) (initialState) (lambda (v) v)(lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
     ;(parser filename)))
 
 ;the default state
@@ -21,71 +21,71 @@
 
 ;decide state determines and changes the state of an statement
 (define decideState
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
      ((null? l) (return state))
      ((atom? l) (return state))
-     ((list? (car l)) (decideState (car l) state (lambda (v) (decideState (cdr l) v return continue break)) continue break))
-     ((eq? (car l) 'return) (stateReturn l state return continue break))
-     ((eq? (car l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v)))))
-     ((eq? (car l) 'var) (stateDeclaration l state return continue break))
-     ((eq? (car l) 'if) (stateIf l state return continue break))
+     ((list? (car l)) (decideState (car l) state (lambda (v) (decideState (cdr l) v return continue break exit)) continue break exit))
+     ((eq? (car l) 'return) (stateReturn l state return continue break exit))
+     ((eq? (car l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
+     ((eq? (car l) 'var) (stateDeclaration l state return continue break exit))
+     ((eq? (car l) 'if) (stateIf l state return continue break exit))
      ((eq? (car l) 'break) (break state))
-     ((eq? (car l) 'begin) (stateBegin l (addLayer state) return continue break))
+     ((eq? (car l) 'begin) (stateBegin l (addLayer state) return continue break exit))
      ((eq? (car l) 'continue) (continue state))
-     ((eq? (car l) '=) (stateAssign l state return continue break))
-     ((not (null? (cdr l))) (decideState (cdr l) state return continue break))
+     ((eq? (car l) '=) (stateAssign l state return continue break exit))
+     ((not (null? (cdr l))) (decideState (cdr l) state return continue break exit))
      (else (return state))
      )))
 
 ;handles return statements
 (define stateReturn
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state return))
-      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state return))
-      (else (decideState (cdr l) state (lambda (v) (variable-handler 'return (getValue (cdr l) v) v return)) continue break)))))
+      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
+      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
+      (else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
       
 ;handles declarations
 (define stateDeclaration
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
       ((not (null? (lookup (leftoperand l) state))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
-      (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break)))))
+      (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break exit)))))
 
 ;handles assignments
 (define stateAssign
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
       ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaring))
-      ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (variable-handler (leftoperand l) (getValue l v) v return)) continue break))
-      (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue l v) v return)) continue break)))))
+      ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (variable-handler (leftoperand l) (getValue l v) v return)) continue break exit))
+      (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue l v) v return)) continue break exit)))))
 
 ;handles if statements
 (define stateIf
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
-      ((getTruth (car (cdr l)) state) (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr l))) v return continue break)) continue break))
-      ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state return continue break))
-      (else (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr (cdr l)))) v return continue break)) continue break)))))
+      ((getTruth (car (cdr l)) state) (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr l))) v return continue break exit)) continue break exit))
+      ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state return continue break exit))
+      (else (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr (cdr l)))) v return continue break exit)) continue break exit)))))
 
 ;handles blocks/begin
 (define stateBegin
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
       ((null? l) (return (removeLayer state)))
       (else (decideState (car l) state (lambda (v)
-                                         (stateBegin (cdr l) v return continue break))(lambda (v) (return v)) break)))))
+                                         (stateBegin (cdr l) v return continue break exit)) (lambda (v) (return v)) break exit)))))
 
 ;handles while loops
 (define stateWhile
-  (lambda (l state return continue break)
+  (lambda (l state return continue break exit)
     (cond
       ((null? l) state)
       ((getTruth (leftoperand l) state) (decideState (leftoperand l) state (lambda (v1)
-                                                                             (decideState (rightoperand l) v1 (lambda (v2)(decideState l v2 return continue break)) continue break)) continue break))
-      (else (decideState (leftoperand l) state return continue break)))))
+                                                                             (decideState (rightoperand l) v1 (lambda (v2)(decideState l v2 return continue break exit)) continue break exit)) continue break exit))
+      (else (decideState (leftoperand l) state return continue break exit)))))
 
 ;returns the value of an expression
 (define getValue
