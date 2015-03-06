@@ -181,11 +181,11 @@
   (lambda (name value state)
     (cond
       ((null? (car state)) '())
-      ((eq? (car (variableList state)) name) (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
+      ((eq? (firstVariable state) name) (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
       (else (cons 
-             (cons (car (variableList state)) (car (Update-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
+             (cons (firstVariable state) (car (Update-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) ))
              (cons
-              (cons (car(valueList state)) (car (cdr (Update-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
+              (cons (firstValue state) (car (cdr (Update-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) )))
               '())
              )
             ))))
@@ -208,9 +208,9 @@
                     (append (valueList state) (cons value '()))
                     '())))
      (else (cons 
-             (cons (car (variableList state)) (car (Add-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) ))
+             (cons (firstVariable state) (car (Add-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) ))
              (cons
-             (cons (car(valueList state)) (car (cdr (Add-helper name value (cons (cdr (variableList state)) (cons(cdr(valueList state)) '()))) )))
+             (cons (firstValue state) (car (cdr (Add-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) )))
              '())
              )
             ))))
@@ -238,8 +238,28 @@
   (lambda (name state)
     (cond
      ((null? (car state)) #f)
-     ((eq? (car (variableList state)) name) #t)
-     (else (doesExist-helper name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+     ((eq? (firstVariable state) name) #t)
+     (else (doesExist-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
+ 
+;get all but the first variable in the state
+(define remainingVariables
+  (lambda (state)
+    (cdr (variableList state))))
+
+;get all but the first associated variable in the state
+(define remainingValues
+  (lambda (state)
+    (cdr(valueList state))))
+
+;get the first variable in the state
+(define firstVariable
+  (lambda (state)
+    (car (variableList state))))
+
+;get the first associated value in the state
+(define firstValue
+  (lambda (state)
+    (car(valueList state))))
 
 ;get all the current variables in the state
 (define variableList
