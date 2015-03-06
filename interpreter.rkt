@@ -17,7 +17,7 @@
 ;the default state
 (define initialState
   (lambda ()
-      '((true false return) (#t #f 'noReturnValueSet))))
+      (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
 
 ;decide state determines and changes the state of an statement
 (define decideState
@@ -161,8 +161,8 @@
   (lambda (name state)
     (cond
      ((null? (car state)) '())
-     ((eq? (car (variableList state)) name) (car (valueList state)))
-     (else (lookup-helper name (cons (cdr (variableList state)) (cons(cdr(valueList state)) '())))))))
+     ((eq? (firstVariable state) name) (unbox(firstValue state)))
+     (else (lookup-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
 
 (define variable-handler
   (lambda (name value state return)
@@ -181,7 +181,7 @@
   (lambda (name value state)
     (cond
       ((null? (car state)) '())
-      ((eq? (firstVariable state) name) (cons (car state) (cons (cons value (cdr (car (cdr state)))) '())))
+      ((eq? (firstVariable state) name) (cons (variableList state) (cons (cons (box value) (remainingValues state)) '())))
       (else (cons 
              (cons (firstVariable state) (car (Update-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) ))
              (cons
@@ -205,7 +205,7 @@
      ((null? (car state))
              (cons (append (variableList state) (cons name '()))
                    (cons 
-                    (append (valueList state) (cons value '()))
+                    (append (valueList state) (cons (box value) '()))
                     '())))
      (else (cons 
              (cons (firstVariable state) (car (Add-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) ))
