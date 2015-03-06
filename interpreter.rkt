@@ -11,15 +11,13 @@
 (define interpret
   (lambda (filename)
     (lookup 'return (decideState (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)))))
-    ;(decideState (parser filename) (initialState) (lambda (v) v)(lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
-    ;(parser filename)))
 
 ;the default state
 (define initialState
   (lambda ()
       (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
 
-;decide state determines and changes the state of an statement
+;decide state determines and changes the state of a statement
 (define decideState
   (lambda (l state return continue break exit)
     (cond
@@ -31,14 +29,14 @@
      ((eq? (car l) 'var) (stateDeclaration l state return continue break exit))
      ((eq? (car l) 'if) (stateIf l state return continue break exit))
      ((eq? (car l) 'break) (break state))
-     ((eq? (car l) 'begin) (stateBegin l (addLayer state) return continue break exit))
+     ((eq? (car l) 'begin) (stateBlock l (addLayer state) return continue break exit))
      ((eq? (car l) 'continue) (continue state))
      ((eq? (car l) '=) (stateAssign l state return continue break exit))
      ((not (null? (cdr l))) (decideState (cdr l) state return continue break exit))
      (else (return state))
      )))
 
-;handles return statements
+;handles return statements by exiting to the beginning of the program (using the exit continuation set at the inital call of stateDecide)
 (define stateReturn
   (lambda (l state return continue break exit)
     (cond
@@ -46,7 +44,7 @@
       ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
       (else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
       
-;handles declarations
+;handles variable declarations
 (define stateDeclaration
   (lambda (l state return continue break exit)
     (cond
@@ -54,7 +52,7 @@
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
       (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break exit)))))
 
-;handles assignments
+;handles variable assignments
 (define stateAssign
   (lambda (l state return continue break exit)
     (cond
@@ -70,13 +68,13 @@
       ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state return continue break exit))
       (else (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr (cdr l)))) v return continue break exit)) continue break exit)))))
 
-;handles blocks/begin
-(define stateBegin
+;handles blocks
+(define stateBlock
   (lambda (l state return continue break exit)
     (cond
       ((null? l) (return (removeLayer state)))
       (else (decideState (car l) state (lambda (v)
-                                         (stateBegin (cdr l) v return continue break exit)) (lambda (v) (return v)) break exit)))))
+                                         (stateBlock (cdr l) v return continue break exit)) (lambda (v) (return v)) break exit)))))
 
 ;handles while loops
 (define stateWhile
@@ -147,7 +145,7 @@
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state)))
       )))
 
-;looks up the value of a variable
+;looks up the value of a variable handles multiple layers
 (define lookup
   (lambda (name state)
     (cond
@@ -156,7 +154,7 @@
       ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper name (car state)))
       (else (lookup name (cdr state))))))
 
-;lookup a variable's value in the current state
+;lookup a variable's value in the layer it is given
 (define lookup-helper
   (lambda (name state)
     (cond
@@ -164,11 +162,13 @@
      ((eq? (firstVariable state) name) (unbox(firstValue state)))
      (else (lookup-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
 
+;decides to add or update a variable in the state
 (define variable-handler
   (lambda (name value state return)
     (if (not (null? (lookup name state))) (return (Update name value state))
         (return(Add name value state)))))
 
+;updates the value of a variable in the state handles multiple layers
 (define Update
  (lambda (name value state)
   (cond 
@@ -177,11 +177,12 @@
       ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (cons (Update-helper name value (car state)) (cdr state)))
       (else (cons (car state) (Update name value (cdr state)))))))
 
+;updates the value of a variable in the layer it was given
 (define Update-helper
   (lambda (name value state)
     (cond
       ((null? (car state)) '())
-      ((eq? (firstVariable state) name) (cons (variableList state) (cons (cons (box value) (remainingValues state)) '())))
+      ((eq? (firstVariable state) name) (begin (set-box! (firstValue state) value) state))
       (else (cons 
              (cons (firstVariable state) (car (Update-helper name value (cons (remainingVariables state) (cons(remainingValues state) '()))) ))
              (cons
@@ -190,6 +191,7 @@
              )
             ))))
 
+;add a variable to the state handles multiple layers
 (define Add
   (lambda (name value state)
     (cond 
@@ -198,7 +200,7 @@
       (else (Add-helper name value state)))))
           
 
-;add or update variables in the current state
+;adds a variable to the layer it is given
 (define Add-helper
   (lambda (name value state)
     (cond
