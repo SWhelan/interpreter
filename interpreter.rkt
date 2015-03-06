@@ -40,8 +40,8 @@
 (define stateReturn
   (lambda (l state return)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (return (variable-handler 'return 'true state return)))
-      ((eq? (getValue (cdr l) state) '#f) (return (variable-handler 'return 'false state return)))
+      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state return))
+      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state return))
       (else (decideState (cdr l) state (lambda (v) (variable-handler 'return (getValue (cdr l) v) v return)))))))
       
 ;handles declarations
@@ -56,7 +56,8 @@
 (define stateAssign
   (lambda (l state return)
     (cond
-      ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (return (variable-handler (leftoperand l) (getValue l v) v return)))))
+      ((not (doesExist (leftoperand l) state)) (error 'usingBeforeDeclaring))
+      ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (variable-handler (leftoperand l) (getValue l v) v return))))
       (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue l v) v return)))))))
 
 ;handles if statements
@@ -71,8 +72,8 @@
 (define stateBegin
   (lambda (l state return)
     (cond
-      ((null? l) state)
-      (else (decideState (cdr l) state (lambda (v)(stateBegin (cdr l) v return)))))))
+      ((null? l) (return (removeLayer state)))
+      (else (decideState (car l) state (lambda (v)(stateBegin (cdr l) v return)))))))
 
 ;handles while loops
 (define stateWhile
@@ -89,6 +90,7 @@
        (cond
          ((number? expression) expression)
          ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
+         ((and (atom? expression) (eq? (lookup expression state) '())) (error 'usingBeforeDeclaring))
          ((atom? expression) (lookup expression state))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))         
@@ -114,7 +116,7 @@
          ((eq? '&& (operator expression))  (getTruth expression state))
          ((eq? '|| (operator expression))  (getTruth expression state))
          ((null? (cdr expression)) (getValue (car expression) state))
-        (else (error expression)))
+        (else (error 'illegalExpression)))
        ))
 
 ;evaluates boolean result of an expression
@@ -146,17 +148,9 @@
 (define lookup
   (lambda (name state)
     (cond
-      ((null? state) (error 'lookvariableNotDeclared))
-      ((atom? (car (car state))) (lookup-helper name state))
+      ((null? state) (error 'lookupVariableNotDeclared))
+      ((atom? (car (car state)))(lookup-helper name state))
       ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper name (car state)))
-      (else (lookup name (cdr state))))))
-
-(define lookup
-  (lambda (name state)
-    (cond
-      ((null? state) (error 'lookvariableNotDeclaed))
-      ((atom? (car (car state))) (lookup-helper name state))
-      ((and (list? (car (car state))) (not (null? (lookup-helper name (car state))))) (lookup-helper (car state)))
       (else (lookup name (cdr state))))))
 
 ;lookup a variable's value in the current state
@@ -257,7 +251,9 @@
 ;adds a layer to the current state
 (define addLayer
   (lambda (state)
-    (cons (initialState)(cons state '()))))
+    (cond
+    ((not (list? (car (car state))))(cons (initialState)(cons state '())))
+    (else (cons (initialState) state)))))       
 
 ;remove a layer from the current state
 (define removeLayer
