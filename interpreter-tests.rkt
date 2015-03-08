@@ -1,0 +1,18 @@
+(require htdp/testing)
+
+(load "interpreter.rkt")
+
+(check-expect (interpret "test1.txt") 100)
+(check-expect (interpret "test2.txt") 20)
+(check-expect (interpret "test3.txt") 6)
+(check-expect (interpret "test4.txt") -1)
+(check-expect (interpret "test5.txt") 789)
+(check-expect (interpret "test6.txt") 2)
+(check-expect (interpret "test7.txt") 164)
+(check-error (interpret "test8.txt") "error: usingBeforeDeclaring")
+(check-error (interpret "test9.txt") "error: usingBeforeDeclaring")
+(check-error (interpret "test10.txt") "error: variableAlreadyDeclared")
+(check-expect (interpret "test11.txt") 12)
+(check-expect (interpret "test12.txt") 32)
+(check-expect (interpret "test13.txt") 21)
+(generate-report)
