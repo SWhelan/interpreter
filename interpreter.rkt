@@ -58,7 +58,9 @@
     (cond
       ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaring))
       ((eq? (lookup (leftoperand l) state) 'declared) (decideState (rightoperand l) state (lambda (v) (variable-handler (leftoperand l) (getValue l v) v return)) continue break exit))
+      ;((eq? (lookup (leftoperand l) state) 'declared) (variable-handler (leftoperand l) (getValue (rightoperand l) state) state (lambda(v) v)))
       (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue l v) v return)) continue break exit)))))
+      ;(else (variable-handler (leftoperand l)(getValue (rightoperand l) state) state return)))))
 
 ;handles if statements
 (define stateIf
@@ -104,6 +106,7 @@
          ((and (eq? '- (operator expression))(not (null? (cdr (cdr expression)))))
           (- (getValue (leftoperand expression) state)(getValue (rightoperand expression) state)))
          ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
+         ;((eq? '= (operator expression)) (getValue (leftoperand expression) (variable-handler (leftoperand expression) (rightoperand expression) state (lambda (v) v))))
          ((eq? '= (operator expression)) (getValue (rightoperand expression) state))
          ((eq? 'var (operator expression)) (getValue (rightoperand expression) state))
          

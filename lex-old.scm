@@ -70,7 +70,7 @@
 
 ; the current list of reserved words and operator characters
 
-(define reserved-word-list '(if else return while break continue class extends new throw catch finally try static var true false function))
+(define reserved-word-list '(if else return while break continue class extends new throw catch finally try static var true false))
 (define reserved-operator-list '(#\= #\< #\> #\! #\+ #\* #\/ #\- #\% #\& #\| #\!))
 
 ; return a lexeme with the next read symbol
