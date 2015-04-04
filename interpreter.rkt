@@ -2,20 +2,89 @@
 ; Michael Rosenfield mer95
 ; Sarah Whelan slw96
 
-; Part 2
+; Part 3
 
-(load "simpleParser.scm")
+(load "functionParser.scm")
 (load "lex.scm")
 
-;gets the parse tree of the input file and interprets the program
+;main interpret function
 (define interpret
   (lambda (filename)
-    (lookup 'return (decideState (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)))))
+    (lookup 'return (functionCall '(funcall main) (interpretOuter filename)))))
+
+;adds global variables and creates functions
+(define interpretOuter
+  (lambda (filename)(decideStateOuter (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
 
 ;the default state
 (define initialState
   (lambda ()
       (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
+
+;;;;;; Interpret Whole File
+
+;only allows variables and functions
+(define decideStateOuter
+  (lambda (l state return continue break exit)
+    (cond
+     ((null? l) (return state))
+     ((atom? l) (return state))
+     ((list? (car l)) (decideStateOuter (car l) state (lambda (v) (decideStateOuter (cdr l) v return continue break exit)) continue break exit))
+     ((eq? (car l) 'function) (stateFunction l state return continue break exit))
+     ((eq? (car l) 'var) (stateDeclarationOuter l state return continue break exit))
+     ((eq? (car l) '=) (stateAssignOuter l state return continue break exit))
+     (else (return state)))))
+
+;handles variable declarations
+(define stateDeclarationOuter
+  (lambda (l state return continue break exit)
+    (cond
+      ((not (null? (lookup (leftoperand l) state))) (error 'variableAlreadyDeclared))
+      ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
+      (else (decideStateOuter (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break exit)))))
+
+;handles variable assignments
+(define stateAssignOuter
+  (lambda (l state return continue break exit)
+    (cond
+      ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaring))
+      ((eq? (lookup (leftoperand l) state) 'declared) (variable-handler (leftoperand l) (getValue (rightoperand l) state) state return))
+      (else (variable-handler (leftoperand l)(getValue (rightoperand l) state) state return)))))
+
+;handles function definitions
+(define stateFunction
+  (lambda (l state return continue break exit)    
+    (return (variable-handler (functionName l) (makeClosure (functionBody l) (functionParamList l) state) state (lambda(v) v)))))
+
+;make a function closure to store in the environment
+(define makeClosure
+  (lambda (body params state)
+    (cons params (cons body (cons outerLayer '())))))
+
+; evaluate a functioncall
+(define functionCall
+  (lambda (l state)
+    (decideState (functionClosureBody (lookup (functionCallName l) state))
+     (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
+                 ((getFunctionStateMethod (lookup (functionCallName l) state)) state))
+     (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
+
+;copy the actual paramters into the formal parameters
+(define copyParams
+  (lambda (actual state formal stateFromClosure)
+    (cond
+      ((null? actual) stateFromClosure)
+      (else (copyParams (cdr actual) state (cdr formal) (variable-handler (car formal) (lookup (car actual) state) stateFromClosure (lambda (v) v)))))))
+
+;get the outer layer of the environment
+(define outerLayer
+  (lambda (state)
+    (cond
+      ((atom? (car (car state)))state)
+      ((list? (car state)) (car (cdr state)))
+      (else (outerLayer (cdr state))))))
+
+;;;;;; Interpret the Function Body
 
 ;decide state determines and changes the state of a statement
 (define decideState
@@ -26,13 +95,13 @@
      ((list? (car l)) (decideState (car l) state (lambda (v) (decideState (cdr l) v return continue break exit)) continue break exit))
      ((eq? (car l) 'return) (stateReturn l state return continue break exit))
      ((eq? (car l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
+     ((eq? (car l) 'function) (stateFunction l state return continue break exit))
      ((eq? (car l) 'var) (stateDeclaration l state return continue break exit))
      ((eq? (car l) 'if) (stateIf l state return continue break exit))
      ((eq? (car l) 'break) (break state))
      ((eq? (car l) 'begin) (stateBlock l (addLayer state) return continue break exit))
      ((eq? (car l) 'continue) (continue state))
      ((eq? (car l) '=) (stateAssign l state return continue break exit))
-     ;((not (null? (cdr l))) (decideState (cdr l) state return continue break exit))
      (else (return state))
      )))
 
@@ -43,7 +112,7 @@
       ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
       ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
       (else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
-      
+
 ;handles variable declarations
 (define stateDeclaration
   (lambda (l state return continue break exit)
@@ -85,6 +154,8 @@
                                                                              (decideState (rightoperand l) v1 (lambda (v2)(decideState l v2 return continue break exit)) continue break exit)) continue break exit))
       (else (decideState (leftoperand l) state return continue break exit)))))
 
+;;;;;; Value
+
 ;returns the value of an expression
 (define getValue
   (lambda (expression state)
@@ -93,6 +164,7 @@
          ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
          ((and (atom? expression) (eq? (lookup expression state) '())) (error 'usingBeforeDeclaring))
          ((atom? expression) (lookup expression state))
+         ((eq? (operator expression) 'funcall) (lookup 'return (functionCall expression state)))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))         
          ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state)
@@ -144,6 +216,8 @@
                                          (getValue (rightoperand expression) state)))
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state)))
       )))
+
+;;;;;; Environment
 
 ;looks up the value of a variable handles multiple layers
 (define lookup
@@ -198,7 +272,7 @@
       ((atom? (car (car state)))(Add-helper name value state))
       ((list? (car state))(cons (Add-helper name value (car state)) (cdr state)))
       (else (Add-helper name value state)))))
-          
+
 
 ;adds a variable to the layer it is given
 (define Add-helper
@@ -217,7 +291,21 @@
              )
             ))))
 
- ;abstraction of operators     
+;adds a layer to the current state
+(define addLayer
+  (lambda (state)
+    (cond
+    ((not (list? (car (car state))))(cons (initialState)(cons state '())))
+    (else (cons (initialState) state)))))       
+
+;remove a layer from the current state
+(define removeLayer
+  (lambda (state)
+    (cdr state)))
+
+;;;;;; Abstraction
+
+;abstraction of operators     
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
@@ -257,14 +345,37 @@
   (lambda (state)
     (car(cdr state))))
 
-;adds a layer to the current state
-(define addLayer
-  (lambda (state)
-    (cond
-    ((not (list? (car (car state))))(cons (initialState)(cons state '())))
-    (else (cons (initialState) state)))))       
+;abstractions for the function definition passed by the parser
+(define functionName
+  (lambda (l)
+    (car (cdr l))))
 
-;remove a layer from the current state
-(define removeLayer
-  (lambda (state)
-    (cdr state)))
+(define functionBody
+  (lambda (l)
+    (car (cdr (cdr (cdr l))))))
+
+(define functionParamList
+  (lambda (l)
+    (car (cdr (cdr l)))))
+
+;abstractions for the function closures
+(define functionClosureBody
+  (lambda (l)
+    (car (cdr l))))
+
+(define functionClosureParamList
+  (lambda (l)
+    (car l)))
+
+(define getFunctionStateMethod
+  (lambda (l)
+    (car (cdr (cdr l)))))
+
+;abstractions for the function calls
+(define functionCallName
+  (lambda (l)
+    (car (cdr l))))
+
+(define functionCallParamList
+  (lambda (l)
+    (cdr (cdr l))))
