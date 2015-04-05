@@ -1,19 +1,20 @@
-var x = 14;
-var y = 3 * x - 7;
-function gcd(a,b) {
-  if (a < b) {
-    var temp = a;
-    a = b;
-    b = temp;
+var b = 10;
+function one (a){
+ var b = 4;
+  function three (a){
+    return a *3;
   }
-  var r = a % b;
-  while (r != 0) {
-    a = b;
-    b = r;
-    r = a % b;
-  }
-  return b;
+  return three(a);
 }
-function main () {
-  return gcd(x,y);
+
+function two (a){
+  if(a == 0){
+    return 0;
+  }
+  return two(a-1);
+}
+
+function main() {
+  b = 5;
+  return one(10) + 2 + b;
 }

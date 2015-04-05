@@ -10,7 +10,7 @@
 ;main interpret function
 (define interpret
   (lambda (filename)
-    (lookup 'return (functionCall '(funcall main) (interpretOuter filename)))))
+    (lookup 'return (functionCall '(funcall main) (interpretOuter filename) (lambda (v) v)))))
 
 ;adds global variables and creates functions
 (define interpretOuter
@@ -63,26 +63,38 @@
 
 ; evaluate a functioncall
 (define functionCall
-  (lambda (l state)
-    (decideState (functionClosureBody (lookup (functionCallName l) state))
-     (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
-                 ((getFunctionStateMethod (lookup (functionCallName l) state)) state))
-     (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
+  (lambda (l state return)
+    (cond
+      ((eq? (lookup (functionCallName l) state) '()) (error "Illegal Function Call"))
+      (else (decideState (functionClosureBody (lookup (functionCallName l) state))
+                         (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
+                                     (addLayer ((getFunctionStateMethod (lookup (functionCallName l) state)) state))
+                                     )
+                         (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))))
 
 ;copy the actual paramters into the formal parameters
 (define copyParams
   (lambda (actual state formal stateFromClosure)
     (cond
       ((null? actual) stateFromClosure)
-      (else (copyParams (cdr actual) state (cdr formal) (variable-handler (car formal) (lookup (car actual) state) stateFromClosure (lambda (v) v)))))))
+      (else (copyParams (cdr actual) state (cdr formal) (Add (car formal) (getValue (car actual) state) stateFromClosure))))))
 
 ;get the outer layer of the environment
 (define outerLayer
   (lambda (state)
     (cond
-      ((atom? (car (car state)))state)
+      ((atom? (car (car state))) state)
       ((list? (car state)) (car (cdr state)))
       (else (outerLayer (cdr state))))))
+
+;get the top layer of the environment
+(define topLayer
+  (lambda (state)
+    (cond
+      ((null? (car state)) state)
+      ((atom? (car (car state))) state)
+      ((list? (car state)) (car state))
+      (else (topLayer (cdr state))))))
 
 ;;;;;; Interpret the Function Body
 
@@ -96,6 +108,7 @@
      ((eq? (car l) 'return) (stateReturn l state return continue break exit))
      ((eq? (car l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
      ((eq? (car l) 'function) (stateFunction l state return continue break exit))
+     ((eq? (car l) 'funcall) (functionCall l state return))
      ((eq? (car l) 'var) (stateDeclaration l state return continue break exit))
      ((eq? (car l) 'if) (stateIf l state return continue break exit))
      ((eq? (car l) 'break) (break state))
@@ -111,15 +124,29 @@
     (cond
       ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
       ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
-      (else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
+      ;(else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
+      (else (variable-handler 'return (getValue (cdr l) state) state exit)))))
 
 ;handles variable declarations
 (define stateDeclaration
   (lambda (l state return continue break exit)
     (cond
-      ((not (null? (lookup (leftoperand l) state))) (error 'variableAlreadyDeclared))
+      ((not (null? (lookup (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
-      (else (decideState (rightoperand l) state (lambda (v)(variable-handler (leftoperand l) (getValue (rightoperand l) v) v return)) continue break exit)))))
+     ; (else (decideState (rightoperand l) state (lambda (v)
+       ;                                           (variable-handler (leftoperand l) 
+       ;                                                             (getValue (rightoperand l) v) 
+       ;                                                             (topLayer v) 
+        ;                                                            (lambda (v) (return (cons v (remainingLayers state)))))) continue break exit)))))
+      (else (variable-handler (leftoperand l) (getValue (rightoperand l) state) (topLayer state) (lambda (v) (cons v (remainingLayers state))))))))
+
+(define remainingLayers
+  (lambda (state)
+    (cond
+      ((null? (car state)) '())
+      ((atom? (car (car state))) '())
+      ((and (list? (car state)) (null? (cdr (cdr state)))) (car (cdr state)))
+      ((list? (car state)) (cdr state)))))
 
 ;handles variable assignments
 (define stateAssign
@@ -164,7 +191,8 @@
          ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
          ((and (atom? expression) (eq? (lookup expression state) '())) (error 'usingBeforeDeclaring))
          ((atom? expression) (lookup expression state))
-         ((eq? (operator expression) 'funcall) (lookup 'return (functionCall expression state)))
+         ((eq? (operator expression) 'funcall) (lookup 'return (functionCall expression state (lambda (v) v))))
+         
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
                                             (getValue (rightoperand expression) state)))         
          ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state)
@@ -295,7 +323,8 @@
 (define addLayer
   (lambda (state)
     (cond
-    ((not (list? (car (car state))))(cons (initialState)(cons state '())))
+    ((not (list? 
+           (car (car state))))(cons (initialState)(cons state '())))
     (else (cons (initialState) state)))))       
 
 ;remove a layer from the current state
