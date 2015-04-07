@@ -21,6 +21,10 @@
   (lambda ()
       (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
 
+(define parserOutput
+  (lambda (filename)
+    (parser filename)))
+
 ;;;;;; Interpret Whole File
 
 ;only allows variables and functions
@@ -68,7 +72,7 @@
       ((eq? (lookup (functionCallName l) state) '()) (error "Illegal Function Call"))
       (else (decideState (functionClosureBody (lookup (functionCallName l) state))
                          (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
-                                     (addLayer ((getFunctionStateMethod (lookup (functionCallName l) state)) state))
+                                     (addLayer (cons ((getFunctionStateMethod (lookup (functionCallName l) state)) state) '()))
                                      )
                          (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))))
 
@@ -133,11 +137,7 @@
     (cond
       ((not (null? (lookup (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
-     ; (else (decideState (rightoperand l) state (lambda (v)
-       ;                                           (variable-handler (leftoperand l) 
-       ;                                                             (getValue (rightoperand l) v) 
-       ;                                                             (topLayer v) 
-        ;                                                            (lambda (v) (return (cons v (remainingLayers state)))))) continue break exit)))))
+      ;(else (decideState (rightoperand l) state (lambda (v)                                                  (variable-handler (leftoperand l)                                                                     (getValue (rightoperand l) v)                                                                     (topLayer v)                                                                     (lambda (v) (return (cons v (remainingLayers state)))))) continue break exit)))))      
       (else (variable-handler (leftoperand l) (getValue (rightoperand l) state) (topLayer state) (lambda (v) (cons v (remainingLayers state))))))))
 
 (define remainingLayers
@@ -157,12 +157,32 @@
       (else (variable-handler (leftoperand l)(getValue (rightoperand l) state) state return)))))
 
 ;handles if statements
+;(define stateIf
+;  (lambda (l state return continue break exit)
+;    (cond
+;      ((getTruth (condition l) state) (decideState (condition l) state (lambda (v) (decideState (conditionTrue l) v return continue break exit)) continue break exit))
+;      ((null? (conditionTrue l)) (decideState (condition l) state return continue break exit))
+;      (else (decideState (condition l) state (lambda (v) (decideState (conditionFalse l) v return continue break exit)) continue break exit)))))
+
 (define stateIf
   (lambda (l state return continue break exit)
     (cond
-      ((getTruth (car (cdr l)) state) (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr l))) v return continue break exit)) continue break exit))
-      ((null? (cdr (cdr (cdr l)))) (decideState (car (cdr l)) state return continue break exit))
-      (else (decideState (car (cdr l)) state (lambda (v) (decideState (car (cdr (cdr (cdr l)))) v return continue break exit)) continue break exit)))))
+      ((getTruth (condition l) state) (decideState (conditionTrue l) state return continue break exit))
+      ;((null? (conditionTrue l)) (decideState (condition l) state return continue break exit))
+      ;(else (decideState (condition l) state (lambda (v) (decideState (conditionFalse l) v return continue break exit)) continue break exit)))))
+      (else (decideState (conditionFalse l) state return continue break exit)))))
+
+(define condition
+  (lambda (l)
+    (car (cdr l))))
+
+(define conditionTrue
+  (lambda (l)
+    (car (cdr (cdr l)))))
+
+(define conditionFalse
+  (lambda (l)
+    (car (cdr (cdr (cdr l))))))
 
 ;handles blocks
 (define stateBlock
@@ -323,9 +343,8 @@
 (define addLayer
   (lambda (state)
     (cond
-    ((not (list? 
-           (car (car state))))(cons (initialState)(cons state '())))
-    (else (cons (initialState) state)))))       
+    ((not (list? (car (car state))))(cons (initialState)(cons state '())))
+    (else (cons (initialState) state)))))
 
 ;remove a layer from the current state
 (define removeLayer
