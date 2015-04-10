@@ -23,7 +23,7 @@
 ;the default state
 (define initialState
   (lambda ()
-      (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
+    (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
 
 (define parserOutput
   (lambda (filename)
@@ -127,7 +127,7 @@
 (define getLastNInner
   (lambda (l1 l2 n)
     (cond 
-      ((null? l1) '())
+      ((null? l1) l2)
       ((and (zero? n) (null? (cdr l2))) (car l2))
       ((zero? n) l2)
       (else (getLastNInner (removeLast l1) (cons (getLast l1) l2) (- n 1))))))
@@ -201,7 +201,7 @@
 (define stateAssign
   (lambda (l state return continue break exit)
     (cond
-      ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaring))
+      ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaringOrOutOfScope))
       ((eq? (lookup (leftoperand l) state) 'declared) (variable-handler (leftoperand l) (getValue (rightoperand l) state) state return))
       (else (variable-handler (leftoperand l)(getValue (rightoperand l) state) state return)))))
 
