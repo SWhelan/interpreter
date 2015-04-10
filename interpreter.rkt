@@ -152,9 +152,9 @@
 (define stateReturn
   (lambda (l state return continue break exit)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
-      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
-      (else (variable-handler 'return (getValue (cdr l) state) state exit)))))
+      ((eq? (getValue (cdr l) state) '#t) (exit (Update 'return 'true state)))
+      ((eq? (getValue (cdr l) state) '#f) (exit (Update 'return 'false state)))
+      (else (exit (Update 'return (getValue (cdr l) state) state))))))
 
 ;handles variable declarations
 (define stateDeclaration
@@ -167,10 +167,11 @@
 ;handles variable assignments
 (define stateAssign
   (lambda (l state return continue break exit)
-    (cond
-      ((null? (lookup (leftoperand l) state)) (error 'usingBeforeDeclaringOrOutOfScope))
-      ((eq? (lookup (leftoperand l) state) 'declared) (variable-handler (leftoperand l) (getValue (rightoperand l) state) state return))
-      (else (variable-handler (leftoperand l)(getValue (rightoperand l) state) state return)))))
+    (let ([variable (lookup (leftoperand l) state)])
+      (cond      
+      ((null? variable) (error 'usingBeforeDeclaringOrOutOfScope))
+      ((or (eq? variable 'declared) (atom? variable)) (return (Update (leftoperand l) (getValue (rightoperand l) state) state)))
+      (else (return (Add (leftoperand l)(getValue (rightoperand l) state) state)))))))
 
 ;handles if statements
 (define stateIf
