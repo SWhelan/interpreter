@@ -18,12 +18,16 @@
 
 ;adds global variables and creates functions
 (define interpretOuter
-  (lambda (filename)(decideStateOuter (parser filename) (initialState) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
+  (lambda (filename)(decideStateOuter (parser filename) (initialStateWithReturn) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
 
 ;the default state
-(define initialState
+(define initialStateWithReturn
   (lambda ()
     (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
+
+(define initialState
+  (lambda ()
+    (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
 
 (define parserOutput
   (lambda (filename)
@@ -79,7 +83,8 @@
                          (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
                                      (addLayer (getLastN state (getFunctionClosureLayerNum (lookup (functionCallName l) state))))
                                      )
-                         (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))))
+                         (lambda (v) (return state))
+                         (lambda (v) v) (lambda (v) v) (lambda (v) v))))))
 
 ;copy the actual paramters into the formal parameters
 (define copyParams
@@ -112,6 +117,12 @@
       ((atom? (car (car l))) 1)
       (else (+ 1 (getNumLayers (cdr l)))))))
 
+(define removeLastN
+  (lambda (l n)
+    (cond 
+      ((zero? n) l)
+      (else (removeLastN (removeLast l) (- n 1))))))
+  
 (define removeLast
   (lambda (l)
     (cond 
@@ -173,21 +184,24 @@
 (define stateReturn
   (lambda (l state return continue break exit)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
-      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
+      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state return))
+      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state return))
       ;(else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
-      (else (variable-handler 'return (getValue (cdr l) state) state exit)))))
+      (else (variable-handler 'return (getValue (cdr l) state) state return)))))
 
 ;handles variable declarations
 (define stateDeclaration
   (lambda (l state return continue break exit)
     (cond
       ((not (null? (lookup (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
+      ;((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared (topLayer state) (lambda (v) (return (cons v (cond
+                                                     ;       ((null? (remainingLayers state)) '())
+                                                      ;      (else (cons (remainingLayers state) '()))))))))
       ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
       (else (variable-handler (leftoperand l) (getValue (rightoperand l) state) (topLayer state)
-                              (lambda (v) (return (cond
-                                                    ;((null? (remainingLayers state)) v)
-                                                    (else (cons v (cons (remainingLayers state)'())))))))))))
+                              (lambda (v) (return (cons v (cond
+                                                            ((null? (remainingLayers state)) '())
+                                                            (else (cons (remainingLayers state) '())))))))))))
 
 (define remainingLayers
   (lambda (state)
