@@ -194,17 +194,8 @@
   (lambda (l state return continue break exit)
     (cond
       ((not (null? (lookup (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
-      ;((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared (topLayer state) (lambda (v) (return (cons v (cond
-                                                     ;       ((null? (remainingLayers state)) '())
-                                                      ;      (else (cons (remainingLayers state) '()))))))))
-      ((null? (cdr (cdr l))) (variable-handler (leftoperand l) 'declared state return))
-      (else (variable-handler (leftoperand l) (getValue (rightoperand l) state) (topLayer state)
-                              (lambda (v) (return (cons v (cond
-                                                            ((null? (remainingLayers state)) '())
-                                                            (else (cons (remainingLayers state) '())))))))))))
-;      ((null? (cdr (cdr l))) (Add (leftoperand l) 'declared state))
- ;     (else (Add (leftoperand l)(getValue (rightoperand l) state) state)))))
-
+      ((null? (cdr (cdr l))) (return (Add (leftoperand l) 'declared state)))
+      (else (return (Add (leftoperand l) (getValue (rightoperand l) state) state))))))
 
 (define remainingLayers
   (lambda (state)

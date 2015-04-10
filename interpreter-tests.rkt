@@ -49,7 +49,7 @@
 (check-expect (interpret "test1.txt") 10)
 (check-expect (interpret "test2.txt") 14)
 (check-expect (interpret "test3.txt") 45)
-;(check-expect (interpret "test4.txt") 55) 
+(check-expect (interpret "test4.txt") 55) 
 (check-expect (interpret "test6.txt") 115)
 (check-expect (interpret "test7.txt") 'true)
 (check-expect (interpret "test8.txt") 20)
@@ -63,6 +63,6 @@
 (check-expect (interpret "test11.txt") 35)
 (check-expect (interpret "test5.txt") 1)
 
-;(check-expect (interpret "test15.txt") 87) ;88
+(check-expect (interpret "test15.txt") 87) ;88
 
 (generate-report)
