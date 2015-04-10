@@ -84,7 +84,7 @@
                                      (addLayer (getLastN state (getFunctionClosureLayerNum (lookup (functionCallName l) state))))
                                      )
                          (lambda (v) (return state))
-                         (lambda (v) v) (lambda (v) v) (lambda (v) v))))))
+                         (lambda (v) v) (lambda (v) v) (lambda (v) (return state)))))))
 
 ;copy the actual paramters into the formal parameters
 (define copyParams
@@ -184,10 +184,10 @@
 (define stateReturn
   (lambda (l state return continue break exit)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state return))
-      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state return))
+      ((eq? (getValue (cdr l) state) '#t) (variable-handler 'return 'true state exit))
+      ((eq? (getValue (cdr l) state) '#f) (variable-handler 'return 'false state exit))
       ;(else (decideState (cdr l) state (lambda (v)(variable-handler 'return (getValue (cdr l) v) v exit)) continue break exit)))))
-      (else (variable-handler 'return (getValue (cdr l) state) state return)))))
+      (else (variable-handler 'return (getValue (cdr l) state) state exit)))))
 
 ;handles variable declarations
 (define stateDeclaration
@@ -202,6 +202,9 @@
                               (lambda (v) (return (cons v (cond
                                                             ((null? (remainingLayers state)) '())
                                                             (else (cons (remainingLayers state) '())))))))))))
+;      ((null? (cdr (cdr l))) (Add (leftoperand l) 'declared state))
+ ;     (else (Add (leftoperand l)(getValue (rightoperand l) state) state)))))
+
 
 (define remainingLayers
   (lambda (state)

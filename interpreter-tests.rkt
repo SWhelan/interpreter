@@ -61,7 +61,8 @@
 (check-expect (interpret "test16.txt") 64)
 (check-expect (interpret "test10.txt") 2) 
 (check-expect (interpret "test11.txt") 35)
+(check-expect (interpret "test5.txt") 1)
 
 ;(check-expect (interpret "test15.txt") 87) ;88
-;(check-expect (interpret "test5.txt") 1)
+
 (generate-report)
