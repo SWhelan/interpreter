@@ -1,0 +1,6 @@
+function main() {
+var x = 30;
+var y = 20;
+var x = x + y;
+return x;
+}
