@@ -61,12 +61,12 @@
   (lambda (l state return)
     (cond
       ((eq? (lookup (functionCallName l) state) '()) (error 'illegalFunctionCall))
-      (else (decideState (functionClosureBody (lookup (functionCallName l) state))
-                         (copyParams (functionCallParamList l) state (functionClosureParamList (lookup (functionCallName l) state))
-                                     (addLayer (getLastN state (getFunctionClosureLayerNum (lookup (functionCallName l) state))))
+      (else (let ([closure (lookup (functionCallName l) state)])(decideState (functionClosureBody closure)
+                         (copyParams (functionCallParamList l) state (functionClosureParamList closure)
+                                     (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
                                      )
                          (lambda (v) (return state))
-                         (lambda (v) (return state)) (lambda (v) (return state)) (lambda (v) (return state)))))))
+                         (lambda (v) (return state)) (lambda (v) (return state)) (lambda (v) (return state))))))))
 
 ;copy the actual paramters into the formal parameters
 (define copyParams

@@ -1,17 +1,12 @@
-function main() {
-var x = 1;
-var y = 2;
-if (x < y) {
-  var z = 0;
-  while (z < 100) {
-    var a = 1;
-    z = z + a;
-    continue;
-    z = 1000;
-  }
-  if (z != x) {
-    z = a;
-  }
+function fib(a) {
+  if (a == 0)
+    return 0;
+  else if (a == 1)
+    return 1;
+  else 
+    return fib(a-1) + fib(a-2);
 }
-return x;
+
+function main() {
+  return fib(10);
 }
