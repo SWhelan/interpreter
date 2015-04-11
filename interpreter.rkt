@@ -49,7 +49,7 @@
 ;handles function definitions
 (define stateFunction
   (lambda (l state return continue break exit)    
-    (return (variable-handler (functionName l) (makeClosure (functionBody l) (functionParamList l) state) state (lambda(v) v)))))
+    (return (Add (functionName l) (makeClosure (functionBody l) (functionParamList l) state) state))))
 
 ;make a function closure to store in the environment
 (define makeClosure
@@ -134,17 +134,17 @@
     (cond
      ((null? l) (return state))
      ((atom? l) (return state))
-     ((list? (car l)) (decideState (car l) state (lambda (v) (decideState (cdr l) v return continue break exit)) continue break exit))
-     ((eq? (car l) 'return) (stateReturn l state return continue break exit))
-     ((eq? (car l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
-     ((eq? (car l) 'function) (stateFunction l state return continue break exit))
-     ((eq? (car l) 'funcall) (functionCall l state return))
-     ((eq? (car l) 'var) (stateDeclaration l state return continue break exit))
-     ((eq? (car l) 'if) (stateIf l state return continue break exit))
-     ((eq? (car l) 'break) (break state))
-     ((eq? (car l) 'begin) (stateBlock l (addLayer state) return continue break exit))
-     ((eq? (car l) 'continue) (continue (removeLayer state)))
-     ((eq? (car l) '=) (stateAssign l state return continue break exit))
+     ((list? (operator l)) (decideState (operator l) state (lambda (v) (decideState (cdr l) v return continue break exit)) continue break exit))
+     ((eq? (operator l) 'return) (stateReturn l state return continue break exit))
+     ((eq? (operator l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
+     ((eq? (operator l) 'function) (stateFunction l state return continue break exit))
+     ((eq? (operator l) 'funcall) (functionCall l state return))
+     ((eq? (operator l) 'var) (stateDeclaration l state return continue break exit))
+     ((eq? (operator l) 'if) (stateIf l state return continue break exit))
+     ((eq? (operator l) 'break) (break state))
+     ((eq? (operator l) 'begin) (stateBlock l (addLayer state) return continue break exit))
+     ((eq? (operator l) 'continue) (continue (removeLayer state)))
+     ((eq? (operator l) '=) (stateAssign l state return continue break exit))
      (else (return state))
      )))
 
@@ -221,7 +221,7 @@
          ((and (eq? '- (operator expression))(not (null? (cdr (cdr expression)))))
           (- (getValue (leftoperand expression) state)(getValue (rightoperand expression) state)))
          ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
-         ((eq? '= (operator expression)) (getValue (leftoperand expression) (variable-handler (leftoperand expression) (getValue (rightoperand expression) state) state (lambda (v) v))))
+         ((eq? '= (operator expression)) (getValue (leftoperand expression)(Update (leftoperand expression) (getValue (rightoperand expression) state) state)))
          ((eq? 'var (operator expression)) (getValue (rightoperand expression) state))
          
          ((eq? '!= (operator expression))  (getTruth expression state))
@@ -261,7 +261,7 @@
                                          (getValue (rightoperand expression) state)))
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state)))
       ((eq? (operator expression) 'funcall) (lookup 'return (functionCall expression state (lambda (v) v))))
-      ((eq? '= (operator expression)) (getValue (leftoperand expression) (variable-handler (leftoperand expression) (getValue (rightoperand expression) state) state (lambda (v) v))))
+      ((eq? '= (operator expression)) (getValue (leftoperand expression) (Update (leftoperand expression) (getValue (rightoperand expression) state) state)))
       )))
 
 ;;;;;; Environment
@@ -272,14 +272,14 @@
     (cond
       ((null? state) '())
       ((atom? (singleLayerTest state))(lookup-helper name state))
-      ((and (list? (singleLayerTest state)) (not (null? (lookup-helper name (car state))))) (lookup-helper name (car state)))
+      ((and (list? (singleLayerTest state)) (not (null? (lookup-helper name (variableList state))))) (lookup-helper name (variableList state)))
       (else (lookup name (cdr state))))))
 
 ;lookup a variable's value in the layer it is given
 (define lookup-helper
   (lambda (name state)
     (cond
-     ((null? (car state)) '())
+     ((null? (variableList state)) '())
      ((eq? (firstVariable state) name) (unbox(firstValue state)))
      (else (lookup-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
 
@@ -357,85 +357,38 @@
     (and (not (pair? x)) (not (null? x)))))
  
 ;get all but the first variable in the state
-(define remainingVariables
-  (lambda (state)
-    (cdr (variableList state))))
-
+(define remainingVariables cdar)
 ;get all but the first associated variable in the state
-(define remainingValues
-  (lambda (state)
-    (cdr(valueList state))))
-
+(define remainingValues cdadr)
 ;get the first variable in the state
-(define firstVariable
-  (lambda (state)
-    (car (variableList state))))
-
+(define firstVariable caar)
 ;get the first associated value in the state
-(define firstValue
-  (lambda (state)
-    (car(valueList state))))
-
+(define firstValue caadr)
 ;get all the current variables in the state
-(define variableList
-  (lambda (state)
-    (car state)))
+(define variableList car)
 
 ;get all the current values of the associated variables in the state
-(define valueList
-  (lambda (state)
-    (car(cdr state))))
+(define valueList cadr)
 
 ;abstractions for the function definition passed by the parser
-(define functionName
-  (lambda (l)
-    (car (cdr l))))
-
-(define functionBody
-  (lambda (l)
-    (car (cdr (cdr (cdr l))))))
-
-(define functionParamList
-  (lambda (l)
-    (car (cdr (cdr l)))))
+(define functionName cadr)
+(define functionBody cadddr)
+(define functionParamList caddr)
 
 ;abstractions for the function closures
-(define functionClosureBody
-  (lambda (l)
-    (car (cdr l))))
-
-(define functionClosureParamList
-  (lambda (l)
-    (car l)))
-
-(define getFunctionClosureLayerNum
-  (lambda (l)
-    (car (cdr (cdr l)))))
+(define functionClosureBody cadr)
+(define functionClosureParamList car)
+(define getFunctionClosureLayerNum caddr)
 
 ;abstractions for the function calls
-(define functionCallName
-  (lambda (l)
-    (car (cdr l))))
-
-(define functionCallParamList
-  (lambda (l)
-    (cdr (cdr l))))
+(define functionCallName cadr)
+(define functionCallParamList cddr)
 
 ;abstractions for if statements
-(define condition
-  (lambda (l)
-    (car (cdr l))))
-
-(define ifBody
-  (lambda (l)
-    (car (cdr (cdr l)))))
-
-(define elseBody
-  (lambda (l)
-    (cdr (cdr (cdr l)))))
+(define condition cadr)
+(define ifBody caddr)
+(define elseBody cdddr)
 
 ;singleLayerTest
-(define singleLayerTest
-  (lambda (l)
-    (car (car l))))
+(define singleLayerTest caar)
   
