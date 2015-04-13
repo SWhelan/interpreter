@@ -1,0 +1,15 @@
+class A {
+  static var total = 0;
+
+  static function sum(x) {
+    if (x > 0) {
+      total = total + x;
+      sum(x - 1);
+    }
+  }
+
+  static function main() {
+    sum(5);
+    return total;
+  }
+}

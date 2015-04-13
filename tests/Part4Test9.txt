@@ -1,0 +1,20 @@
+class A {
+  static var a = 1;
+  static var b = 20;
+}
+
+class B extends A {
+  static var c = 300;
+
+  static function main() {
+    return a + b + c + d;
+  }
+}
+
+class C extends B {
+  static var d = 4000;
+
+  static function main() {
+    return a + b + c + d;
+  }
+}

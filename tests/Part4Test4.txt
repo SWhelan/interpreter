@@ -1,0 +1,12 @@
+class A {
+  static var x = true;
+  static var y = false;
+
+  static function and(a, b) {
+    return a && b;
+  }
+
+  static function main() {
+    return A.and(A.x, A.y);
+  }
+}
