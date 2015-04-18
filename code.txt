@@ -1,27 +1,25 @@
-class A {
-  static var a = 1;
-  static var b = 10;
+class Rectangle {
+  static var width = 10;
+  static var height = 12;
 
-  static function setA(x) {
-    a = x;
+  static function area() {
+    var a = width * height;
+    return a;
   }
 
-  static function getSum() {
-    return a + b;
+  static function setSize(x, y) {
+    width = x;
+    height = y;
   }
 }
 
-class B {
+class Square extends Rectangle {
+  static function setSize(x) {
+    super.setSize(x, x);
+  }
+
   static function main() {
-    A.setA(5);
-
-    return C.x;
-  }
-}
-
-class C {
-  static var x = 100;
-  static function timesX(a) {
-    return a * x;
+    setSize(20);
+    return area();
   }
 }

@@ -186,7 +186,7 @@
                                      (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
                                      currentClassName)
                          currentClassName
-                         (lambda (v) (return v))
+                         (lambda (v) (return (removeLayer v)))
                          (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v))))))))))
 
 (define getCurrentClassName
@@ -216,7 +216,7 @@
        (cond
          ((number? expression) expression)
          ((and (atom? expression) (eq? (lookup expression state className) 'declared)) (error 'usingBeforeAssigning))
-         ;((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))
+         ((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))
          ((atom? expression) (lookup expression state className))
          ((and (eq? (operator expression) 'dot) (eq? (leftoperand expression) 'super)) (getValue (rightoperand expression) state (classParent (lookup className state className))))
          ((eq? (operator expression) 'dot) (getValue (rightoperand expression) state (leftoperand expression)))
@@ -343,7 +343,7 @@
     (cond
       ((null? (lookupLocal name state)) 
        (cond
-         ((and (null? (lookupInClass name state className)) (not (null? (classParent (lookupLocal className state))))) (lookupInParentClass name state className))
+         ((and (null? (lookupInClass name state className)) (not (null? (classParent (lookupLocal className state))))) (lookup name state (classParent (lookupLocal className state))))
          (else (lookupInClass name state className))))
       (else (lookupLocal name state)))))
 
