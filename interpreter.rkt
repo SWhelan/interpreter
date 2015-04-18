@@ -4,17 +4,63 @@
 
 ; Part 3
 
-(load "functionParser.scm")
+(load "classParser.scm")
 (load "lex.scm")
 
 ;main interpret function
 (define interpret
-  (lambda (filename)
-    (lookup 'return (stateFunctionCall '(funcall main) (interpretOuter filename) (lambda (v) v)))))
+  (lambda (filename classname)
+    (lookup 'return (stateFunctionCall '(funcall main) (interpretClasses (parser filename) (initialEmpty)) (string->symbol classname) (lambda (v) v)) (string->symbol classname))))
+
+(define interpretClasses
+  (lambda (l state)
+    (cond
+      ((null? l) state)
+      ((eq? (car l) 'class)(decideStateClass (classBody l) (Add (className l) (makeClass l) state) (className l) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)))
+      (else (interpretClasses (cdr l) (interpretClasses (car l) state))))))
+
+(define initialEmpty
+  (lambda ()
+    (initialStateWithReturn)))
+
+(define makeClass
+  (lambda (l)
+    (cond
+      ((null? (classHeader l)) (cons (classHeader l) (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '())))))
+      (else (cons (car (cdr (classHeader l)))  (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '()))))))))
+
+(define decideStateClass
+  (lambda (l state className return continue break exit)
+    (let ([class (lookup className state className)])
+    (cond
+     ((null? l) (return state))
+     ((list? (operator l)) (decideStateClass (operator l) state className (lambda (v) (decideStateClass (cdr l) v className return continue break exit)) continue break exit))
+     ;((eq? (operator l) 'function) (cons (classParent state) (cons (classFields state) (cons (stateFunction l (classMethods state) return continue break exit) (classInitials state)))))
+     ((eq? (operator l) 'static-function) (stateFunction l state className return continue break exit))
+     ;((eq? (operator l) 'static-var)(stateDeclarationClasses l  class) 
+          ;(lambda (v) (return (Update className (cons (classParent class) (cons v (cons (classMethods class) (cons (classInitials class) '())))) state)))  (lambda (v) (v)) (lambda (v) v) (lambda (v) v)))
+     ((eq? (operator l) 'static-var)(stateDeclarationClasses l state className return continue break exit))
+     ;((eq? (operator l) 'var) (cons (classParent state) (cons (classFields state) (cons (classMethods state) (stateDeclaration l (classInitials state) return break continue exit)))))
+     (else (return state))))))
+
+;handles variable declarations
+(define stateDeclarationClasses
+  (lambda (l state className return continue break exit)
+    (let ([class (lookup className state className)])
+    (cond
+      ((not (null? (lookupLocal (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
+      ((null? (cdr (cdr l))) (return (Update className (cons (classParent class) (cons (Add (leftoperand l) 'declared (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))
+      (else (return (Update className (cons (classParent class) (cons (Add (leftoperand l) (getValue (rightoperand l) state className) (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))))))
+
+
+(define parserOutput
+  (lambda (filename classname)
+    (parser filename)))
 
 ;adds global variables and creates functions
 (define interpretOuter
-  (lambda (filename)(decideStateOuter (parser filename) (initialStateWithReturn) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
+  (lambda (l)
+    (decideStateOuter l (initialStateWithReturn) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v))))
 
 ;the default state
 (define initialStateWithReturn
@@ -26,7 +72,7 @@
   (lambda ()
     (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
 
-;;;;;; Interpret Whole File
+;;;;;; Interpret Each Class
 
 ;only allows variables and functions
 (define decideStateOuter
@@ -43,155 +89,189 @@
 
 ;decide state determines and changes the state of a statement
 (define decideState
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
      ((null? l) (return state))
      ((atom? l) (return state))
-     ((list? (operator l)) (decideState (operator l) state (lambda (v) (decideState (cdr l) v return continue break exit)) continue break exit))
-     ((eq? (operator l) 'return) (stateReturn l state return continue break exit))
-     ((eq? (operator l) 'while) (stateWhile l state return continue (lambda (v) (return (removeLayer v))) exit))
-     ((eq? (operator l) 'function) (stateFunction l state return continue break exit))
-     ((eq? (operator l) 'funcall) (stateFunctionCall l state return))
-     ((eq? (operator l) 'var) (stateDeclaration l state return continue break exit))
-     ((eq? (operator l) 'if) (stateIf l state return continue break exit))
+     ((list? (operator l)) (decideState (operator l) state className (lambda (v) (decideState (cdr l) v className return continue break exit)) continue break exit))
+     ((eq? (operator l) 'return) (stateReturn l state className return continue break exit))
+     ((eq? (operator l) 'while) (stateWhile l state className return continue (lambda (v) (return (removeLayer v))) exit))
+     ((eq? (operator l) 'function) (stateFunction l state className return continue break exit))
+     ((eq? (operator l) 'funcall) (stateFunctionCall l state className return))
+     ((eq? (operator l) 'var) (stateDeclaration l state className return continue break exit))
+     ((eq? (operator l) 'if) (stateIf l state className return continue break exit))
      ((eq? (operator l) 'break) (break state))
-     ((eq? (operator l) 'begin) (stateBlock l (addLayer state) return continue break exit))
+     ((eq? (operator l) 'begin) (stateBlock l (addLayer state) className return continue break exit))
      ((eq? (operator l) 'continue) (continue (removeLayer state)))
-     ((eq? (operator l) '=) (stateAssign l state return continue break exit))
+     ;((eq? (operator l) 'dot) (stateDot l state className return continue break exit))
+     ((eq? (operator l) '=) (stateAssign l state className return continue break exit))
      (else (return state))
      )))
 
+(define stateDot
+  (lambda (l state className return continue break exit)
+    (if (eq? (leftoperand l) className)
+        (getValue (rightoperand l) state className))))
+
 ;handles return statements by exiting to the beginning of the program (using the exit continuation set at the inital call of stateDecide)
 (define stateReturn
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
-      ((eq? (getValue (cdr l) state) '#t) (exit (Update 'return 'true state)))
-      ((eq? (getValue (cdr l) state) '#f) (exit (Update 'return 'false state)))
-      (else (exit (Update 'return (getValue (cdr l) state) state))))))
+      ((eq? (getValue (cdr l) state className) '#t) (exit (Update 'return 'true state)))
+      ((eq? (getValue (cdr l) state className) '#f) (exit (Update 'return 'false state)))
+      (else (exit (Update 'return (getValue (cdr l) state className) state))))))
 
 ;handles variable declarations
 (define stateDeclaration
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
-      ((not (null? (lookup (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
+      ((not (null? (lookupLocal (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (return (Add (leftoperand l) 'declared state)))
-      (else (return (Add (leftoperand l) (getValue (rightoperand l) state) state))))))
+      (else (return (Add (leftoperand l) (getValue (rightoperand l) state className) state))))))
 
 ;handles variable assignments
 (define stateAssign
-  (lambda (l state return continue break exit)
-    (let ([variable (lookup (leftoperand l) state)])
+  (lambda (l state className return continue break exit)
+    (let ([variable (lookup (leftoperand l) state className)])
+      (let ([class (lookup className state className)])
       (cond      
-      ((null? variable) (error 'usingBeforeDeclaringOrOutOfScope))
-      ((or (eq? variable 'declared) (atom? variable)) (return (Update (leftoperand l) (getValue (rightoperand l) state) state)))
-      (else (return (Add (leftoperand l)(getValue (rightoperand l) state) state)))))))
+      ((null? variable) (error 'errorUsingBeforeDeclaringOrOutOfScope))
+      ((and (not (null? (lookupLocal (leftoperand l) state))) (or (eq? variable 'declared) (atom? variable))) (return (Update (leftoperand l) (getValue (rightoperand l) state className) state)))
+      ((or (eq? variable 'declared) (atom? variable)) (return (Update className  (cons (classParent class) (cons (Update (leftoperand l) (getValue (rightoperand l) state className) (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))
+      (else (return (Add (leftoperand l)(getValue (rightoperand l) state className) state))))))))
 
 ;handles if statements
 (define stateIf
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
-      ((getTruth (condition l) state) (decideState (ifBody l) state return continue break exit))
+      ((getTruth (condition l) state className) (decideState (ifBody l) state className return continue break exit))
       ((null? (elseBody l))(return state))
-      (else (decideState (elseBody l) state return continue break exit)))))
+      (else (decideState (elseBody l) state className return continue break exit)))))
 
 ;handles blocks
 (define stateBlock
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
       ((null? l) (return (removeLayer state)))
-      (else (decideState (front l) state (lambda (v)
-                                         (stateBlock (remaining l) v return continue break exit)) (lambda (v) (return v)) break exit)))))
+      (else (decideState (front l) state className (lambda (v)
+                                         (stateBlock (remaining l) v className return continue break exit)) (lambda (v) (return v)) break exit)))))
 
 ;handles while loops
 (define stateWhile
-  (lambda (l state return continue break exit)
+  (lambda (l state className return continue break exit)
     (cond
       ((null? l) state)
-      ((getTruth (leftoperand l) state) (decideState (leftoperand l) state (lambda (v1)
-        (decideState (rightoperand l) v1 (lambda (v2)(decideState l v2 return continue break exit)) continue break exit)) continue break exit))
-      (else (decideState (leftoperand l) state return continue break exit)))))
+      ((getTruth (leftoperand l) state className) (decideState (leftoperand l) state className (lambda (v1)
+        (decideState (rightoperand l) v1 className (lambda (v2)(decideState l v2 className return continue break exit)) continue break exit)) continue break exit))
+      (else (decideState (leftoperand l) state className return continue break exit)))))
 
 ;handles function definitions
 (define stateFunction
-  (lambda (l state return continue break exit)    
-    (return (Add (functionName l) (makeClosure (functionBody l) (functionParamList l) state) state))))
+  (lambda (l state className return continue break exit)
+    (let ([class (lookup className state className)])
+    (return (Update className (cons (classParent class) 
+                  (cons (classFields class) (cons (Add (functionName l) (makeClosure (functionBody l) (functionParamList l) state) (classMethods class))
+                                                  (cons (classInitials class) '())))) state)))))
 
 ;evaluate a functioncall
 (define stateFunctionCall
-  (lambda (l state return)
+  (lambda (l state className return)
+    (let ([class (getClass l state className)])
+      (let ([currentClassName (getCurrentClassName l state className)])
+      (let ([closure (getClosure l state className)])
     (cond
-      ((eq? (lookup (functionCallName l) state) '()) (error 'illegalFunctionCall))
-      (else (let ([closure (lookup (functionCallName l) state)])(decideState (functionClosureBody closure)
+      ;((eq? (lookup (functionCallName l) (classMethods class) className) '()) (error 'illegalFunctionCall))
+      (else (decideState (functionClosureBody closure)
                          (copyParams (functionCallParamList l) state (functionClosureParamList closure)
                                      (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
-                                     )
-                         (lambda (v) (return state))
-                         (lambda (v) (return state)) (lambda (v) (return state)) (lambda (v) (return state))))))))
+                                     currentClassName)
+                         currentClassName
+                         (lambda (v) (return v))
+                         (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v))))))))))
+
+(define getCurrentClassName
+  (lambda (l state className)
+    (cond
+      ((list? (functionCallName l))(leftoperand (functionCallName l)))
+      (else className))))
+  
+(define getClass
+  (lambda (l state className)
+    (cond
+      ((list? (functionCallName l))(lookupLocal (leftoperand (functionCallName l)) state))
+      (else (lookup className state className)))))
+
+(define getClosure
+  (lambda (l state className)
+    (cond
+      ((list? (functionCallName l))(lookupInClassMethods (rightoperand (functionCallName l)) state (leftoperand (functionCallName l))))
+      (else (lookupInClassMethods (functionCallName l) state className)))))
+          
 
 ;;;;;; Value
 
 ;returns the value of an expression
 (define getValue
-  (lambda (expression state)
+  (lambda (expression state className)
        (cond
          ((number? expression) expression)
-         ((and (atom? expression) (eq? (lookup expression state) 'declared)) (error 'usingBeforeAssigning))
-         ((and (atom? expression) (eq? (lookup expression state) '())) (error 'usingBeforeDeclaringOrOutOfScope))
-         ((atom? expression) (lookup expression state))
-         ((eq? (operator expression) 'funcall) (lookup 'return (stateFunctionCall expression state (lambda (v) v))))
-         
-         ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state)
-                                            (getValue (rightoperand expression) state)))         
-         ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state)
-                                                   (getValue (rightoperand expression) state)))
-         ((eq? '% (operator expression)) (remainder (getValue (leftoperand expression) state)
-                                                    (getValue (rightoperand expression) state)))
-         ((eq? '* (operator expression)) (* (getValue (leftoperand expression) state)
-                                            (getValue (rightoperand expression) state)))
+         ((and (atom? expression) (eq? (lookup expression state className) 'declared)) (error 'usingBeforeAssigning))
+         ;((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))
+         ((atom? expression) (lookup expression state className))
+         ((and (eq? (operator expression) 'dot) (eq? (leftoperand expression) 'super)) (getValue (rightoperand expression) state (classParent (lookup className state className))))
+         ((eq? (operator expression) 'dot) (getValue (rightoperand expression) state (leftoperand expression)))
+         ((eq? (operator expression) 'funcall) (stateFunctionCall expression state className (lambda (v) (lookup 'return v className))))
+         ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state className)
+                                            (getValue (rightoperand expression) state className)))
+         ((eq? '/ (operator expression)) (quotient (getValue (leftoperand expression) state className)
+                                                   (getValue (rightoperand expression) state className)))
+         ((eq? '% (operator expression)) (remainder (getValue (leftoperand expression) state className)
+                                                    (getValue (rightoperand expression) state className)))
+         ((eq? '* (operator expression)) (* (getValue (leftoperand expression) state className)
+                                            (getValue (rightoperand expression) state className)))
          ((and (eq? '- (operator expression))(not (null? (cdr (cdr expression)))))
-          (- (getValue (leftoperand expression) state)(getValue (rightoperand expression) state)))
-         ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state)))
-         ((eq? '= (operator expression)) (getValue (leftoperand expression)(Update (leftoperand expression) (getValue (rightoperand expression) state) state)))
-         ((eq? 'var (operator expression)) (getValue (rightoperand expression) state))
+          (- (getValue (leftoperand expression) state className)(getValue (rightoperand expression) state className)))
+         ((eq? '- (operator expression)) (- (getValue (leftoperand expression) state className)))
+         ((eq? '= (operator expression)) (getValue (leftoperand expression)(Update (leftoperand expression) (getValue (rightoperand expression) state className) state className)))
+         ((eq? 'var (operator expression)) (getValue (rightoperand expression) state className))
          
-         ((eq? '!= (operator expression))  (getTruth expression state))
-         ((eq? '== (operator expression))  (getTruth expression state))
-         ((eq? '<= (operator expression))  (getTruth expression state))
-         ((eq? '>= (operator expression))  (getTruth expression state))
-         ((eq? '< (operator expression))  (getTruth expression state))
-         ((eq? '> (operator expression))  (getTruth expression state))
-         ((eq? '! (operator expression))  (getTruth expression state))
-         ((eq? '&& (operator expression))  (getTruth expression state))
-         ((eq? '|| (operator expression))  (getTruth expression state))
-         ((null? (cdr expression)) (getValue (operator expression) state))
+         ((eq? '!= (operator expression))  (getTruth expression state className))
+         ((eq? '== (operator expression))  (getTruth expression state className))
+         ((eq? '>= (operator expression))  (getTruth expression state className))
+         ((eq? '< (operator expression))  (getTruth expression stat classNamee))
+         ((eq? '> (operator expression))  (getTruth expression state className))
+         ((eq? '! (operator expression))  (getTruth expression state className))
+         ((eq? '&& (operator expression))  (getTruth expression state className))
+         ((eq? '|| (operator expression))  (getTruth expression state className))
+         ((null? (cdr expression)) (getValue (operator expression) state className))
         (else (error 'illegalExpression)))
        ))
 
 ;evaluates boolean result of an expression
 (define getTruth
-  (lambda (expression state)
+  (lambda (expression state className)
     (cond
       ((number? expression) expression)
-      ((not (pair? expression)) (lookup expression state))
-      ((eq? '< (operator expression)) (< (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '> (operator expression)) (> (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '<= (operator expression)) (<= (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '>= (operator expression)) (>= (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '== (operator expression)) (eq? (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '!= (operator expression)) (not(eq? (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state))))
-      ((eq? '&& (operator expression)) (and (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '|| (operator expression)) (or (getValue (leftoperand expression) state)
-                                         (getValue (rightoperand expression) state)))
-      ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state)))
-      ((eq? (operator expression) 'funcall) (lookup 'return (stateFunctionCall expression state (lambda (v) v))))
-      ((eq? '= (operator expression)) (getValue (leftoperand expression) (Update (leftoperand expression) (getValue (rightoperand expression) state) state)))
+      ((not (pair? expression)) (lookup expression state className))
+      ((eq? '< (operator expression)) (< (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '> (operator expression)) (> (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '<= (operator expression)) (<= (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '>= (operator expression)) (>= (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '== (operator expression)) (eq? (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '!= (operator expression)) (not(eq? (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className))))
+      ((eq? '&& (operator expression)) (and (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '|| (operator expression)) (or (getValue (leftoperand expression) state className)
+                                         (getValue (rightoperand expression) state className)))
+      ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state className)))
+      ((eq? (operator expression) 'funcall) (lookup 'return (stateFunctionCall expression state (lambda (v) v)) className))
+      ((eq? '= (operator expression)) (getValue (leftoperand expression) (Update (leftoperand expression) (getValue (rightoperand expression) state className) state) className))
       )))
 
 ;;;;;; Function Helpers
@@ -203,11 +283,11 @@
 
 ;copy the actual paramters into the formal parameters
 (define copyParams
-  (lambda (actual state formal stateFromClosure)
+  (lambda (actual state formal stateFromClosure className)
     (cond
       ((not (equalNumElements? actual formal)) (error 'mismatchParameters))
       ((null? actual) stateFromClosure)
-      (else (copyParams (remaining actual) state (remaining formal) (Add (front formal) (getValue (front actual) state) stateFromClosure))))))
+      (else (copyParams (remaining actual) state (remaining formal) (Add (front formal) (getValue (front actual) state className) stateFromClosure) className)))))
 
 ;a check for equal number of parameters
 (define equalNumElements?
@@ -258,14 +338,28 @@
 
 ;;;;;; Environment
 
-;looks up the value of a variable handles multiple layers
 (define lookup
+  (lambda (name state className)
+    (cond
+      ((null? (lookupLocal name state)) 
+       (cond
+         ((and (null? (lookupInClass name state className)) (not (null? (classParent (lookupLocal className state))))) (lookupInParentClass name state className))
+         (else (lookupInClass name state className))))
+      (else (lookupLocal name state)))))
+
+(define lookupInParentClass
+  (lambda (name state className)
+    (lookupInClass name state (classParent (lookupLocal className state)))))
+
+;looks up the value of a variable handles multiple layers
+(define lookupLocal
   (lambda (name state)
     (cond
       ((null? state) '())
+      ((null? (car state)) '()) ;TODO
       ((atom? (singleLayerTest state))(lookup-helper name state))
       ((and (list? (singleLayerTest state)) (not (null? (lookup-helper name (variableList state))))) (lookup-helper name (variableList state)))
-      (else (lookup name (removeLayer state))))))
+      (else (lookupLocal name (removeLayer state))))))
 
 ;lookup a variable's value in the layer it is given
 (define lookup-helper
@@ -274,6 +368,19 @@
      ((null? (variableList state)) '())
      ((eq? (firstVariable state) name) (unbox(firstValue state)))
      (else (lookup-helper name (cons (remainingVariables state) (cons(remainingValues state) '())))))))
+
+;lookup a variable in a class
+(define lookupInClass
+  (lambda (name state className)
+    (lookupLocal name (classFields (lookupLocal className state)))))
+
+(define lookupInClassMethods
+    (lambda (name state className)
+      (cond 
+        ((and (null? (lookupLocal name (classMethods (lookupLocal className state)))) 
+              (not (null? (classParent (lookupLocal className state))))) 
+         (lookupLocal name (classMethods (lookupLocal (classParent (lookupLocal className state)) state))))
+        (else (lookupLocal name (classMethods (lookupLocal className state)))))))
 
 ;updates the value of a variable in the state handles multiple layers
 (define Update
@@ -300,7 +407,7 @@
 (define Add
   (lambda (name value state)
     (cond 
-      ((atom? (singleLayerTest state))(Add-helper name value state))
+      ((or (null? (car state))(atom? (singleLayerTest state)))(Add-helper name value state))
       ((list? (variableList state))(cons (Add-helper name value (variableList state)) (remaining state)))
       (else (Add-helper name value state)))))
 
@@ -322,8 +429,8 @@
 (define addLayer
   (lambda (state)
     (cond
-    ((not (list? (singleLayerTest state)))(cons (initialState)(cons state '())))
-    (else (cons (initialState) state)))))
+    ((not (list? (singleLayerTest state)))(cons (initialStateWithReturn)(cons state '())))
+    (else (cons (initialStateWithReturn) state)))))
 
 ;remove a layer from the current state
 (define removeLayer cdr)
@@ -373,7 +480,14 @@
 (define getFunctionClosureLayerNum caddr)
 
 ;abstractions for the function calls
-(define functionCallName cadr)
+;(define functionCallName 
+;  (lambda (l)
+;    (cond
+;      (and (list? (cadr l) (lookupInClass (rightoperand (cadr l)) 
+;        
+;        (rightoperand (cadr l))
+;        (cadr l))))
+      (define functionCallName cadr)
 (define functionCallParamList cddr)
 
 ;abstractions for if statements
@@ -383,4 +497,14 @@
 
 ;a way to tell if the state has more than one layer
 (define singleLayerTest caar)
-  
+
+;class closure
+(define classParent car)
+(define classFields cadr)
+(define classMethods caddr)
+(define classInitials cadddr)
+ 
+;class parser
+(define className cadr)
+(define classHeader caddr)
+(define classBody cadddr)

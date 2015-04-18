@@ -1,12 +1,27 @@
-function fib(a) {
-  if (a == 0)
-    return 0;
-  else if (a == 1)
-    return 1;
-  else 
-    return fib(a-1) + fib(a-2);
+class A {
+  static var a = 1;
+  static var b = 10;
+
+  static function setA(x) {
+    a = x;
+  }
+
+  static function getSum() {
+    return a + b;
+  }
 }
 
-function main() {
-  return fib(10);
+class B {
+  static function main() {
+    A.setA(5);
+
+    return C.x;
+  }
+}
+
+class C {
+  static var x = 100;
+  static function timesX(a) {
+    return a * x;
+  }
 }
