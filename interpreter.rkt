@@ -81,13 +81,13 @@
      ((eq? (operator l) 'if) (stateIf l state className return continue break exit try catch finally))
      ((eq? (operator l) 'break) (break state))
      ((eq? (operator l) 'try) (stateBlock (tryBody l) (addLayer state) className 
-                                          (lambda (v) (stateBlock (finallyBody l) v className return continue break exit try catch finally))
+                                          (lambda (v) (stateBlock (finallyBody l) state className return continue break exit try catch finally))
                                           continue break exit try 
-                                          (lambda (v e) (stateBlock (catchBody l) (add 'e e v) className 
-                                                                  (lambda (v2) (stateBlock (finallyBody l) v2 className return continue break exit try catch finally)) 
+                                          (lambda (v) (stateBlock (catchBody l) v className 
+                                                                  (lambda (v2) (stateBlock (finallyBody l) state className return continue break exit try catch finally))
                                                                   continue break exit try catch finally))
                                           finally))
-     ((eq? (operator l) 'throw) (catch state (cdr l)))
+     ((eq? (operator l) 'throw) (catch (Add 'e (getValue (cdr l) state className) state)))
      ((eq? (operator l) 'begin) (stateBlock l (addLayer state) className return continue break exit try catch finally))
      ((eq? (operator l) 'continue) (continue (removeLayer state)))
      ((eq? (operator l) '=) (stateAssign l state className return continue break exit try catch finally))
@@ -117,7 +117,7 @@
     (let ([variable (lookup (leftoperand l) state className)])
       (let ([class (lookup className state className)])
       (cond      
-      ((null? variable) (error 'errorUsingBeforeDeclaringOrOutOfScope))
+      ;((null? variable) (error 'errorUsingBeforeDeclaringOrOutOfScope))
       ((and (not (null? (lookupLocal (leftoperand l) state))) (or (eq? variable 'declared) (atom? variable))) (return (Update (leftoperand l) (getValue (rightoperand l) state className) state)))
       ((or (eq? variable 'declared) (atom? variable)) (return (Update className  (cons (classParent class) (cons (Update (leftoperand l) (getValue (rightoperand l) state className) (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))
       (else (return (Add (leftoperand l)(getValue (rightoperand l) state className) state))))))))
@@ -134,7 +134,7 @@
 (define stateBlock
   (lambda (l state className return continue break exit try catch finally)
     (cond
-      ((null? l) (return (removeLayer state)))
+      ((null? l) (return state))
       (else (decideState (front l) state className (lambda (v)
                                          (stateBlock (remaining l) v className return continue break exit try catch finally)) (lambda (v) (return v)) break exit try catch finally)))))
 
@@ -169,7 +169,7 @@
                                      currentClassName)
                          currentClassName
                          (lambda (v) (return state))
-                         (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v))))))))))
+                         (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) v) (lambda (v) v)))))))))
 
 (define getCurrentClassName
   (lambda (l state className)

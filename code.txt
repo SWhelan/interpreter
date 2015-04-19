@@ -1,3 +1,4 @@
+
 class A {
   static function divide(x, y) {
     if (y == 0)
@@ -9,8 +10,7 @@ class A {
     var x;
 
     try {
-      x = divide(10, 5) * 10;
-      x = x + divide(5, 1);
+      x = divide(10, 0);
     }
     catch(e) {
       x = e;
