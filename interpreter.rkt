@@ -192,18 +192,21 @@
 (define getCurrentClassName
   (lambda (l state className)
     (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (classParent (lookup className state className)))
       ((list? (functionCallName l))(leftoperand (functionCallName l)))
       (else className))))
   
 (define getClass
   (lambda (l state className)
     (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (lookupLocal (classParent (lookup className state className)) state))
       ((list? (functionCallName l))(lookupLocal (leftoperand (functionCallName l)) state))
       (else (lookup className state className)))))
 
 (define getClosure
   (lambda (l state className)
     (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super))(lookupInClassMethods (rightoperand (functionCallName l)) state (classParent (lookupLocal className state))))
       ((list? (functionCallName l))(lookupInClassMethods (rightoperand (functionCallName l)) state (leftoperand (functionCallName l))))
       (else (lookupInClassMethods (functionCallName l) state className)))))
           
@@ -270,7 +273,7 @@
       ((eq? '|| (operator expression)) (or (getValue (leftoperand expression) state className)
                                          (getValue (rightoperand expression) state className)))
       ((eq? '! (operator expression))  (not(getValue (leftoperand expression)state className)))
-      ((eq? (operator expression) 'funcall) (lookup 'return (stateFunctionCall expression state (lambda (v) v)) className))
+      ((eq? (operator expression) 'funcall) (stateFunctionCall expression state (lambda (v) (lookup 'return v className))))
       ((eq? '= (operator expression)) (getValue (leftoperand expression) (Update (leftoperand expression) (getValue (rightoperand expression) state className) state) className))
       )))
 
@@ -341,10 +344,9 @@
 (define lookup
   (lambda (name state className)
     (cond
-      ((null? (lookupLocal name state)) 
-       (cond
-         ((and (null? (lookupInClass name state className)) (not (null? (classParent (lookupLocal className state))))) (lookup name state (classParent (lookupLocal className state))))
-         (else (lookupInClass name state className))))
+       
+         ((and (null? (lookupLocal name state)) (and (null? (lookupInClass name state className)) (not (null? (classParent (lookupLocal className state)))))) (lookup name state (classParent (lookupLocal className state))))
+         ((null? (lookupLocal name state)) (lookupInClass name state className))
       (else (lookupLocal name state)))))
 
 (define lookupInParentClass
