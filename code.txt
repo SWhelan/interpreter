@@ -1,4 +1,3 @@
-
 class A {
   static function divide(x, y) {
     if (y == 0)
@@ -8,16 +7,17 @@ class A {
 
   static function main() {
     var x;
+    var y;
 
     try {
-      x = divide(10, 0);
+     x = divide(5, 0);
     }
     catch(e) {
       x = e;
     }
-    finally {
-      x = x + 100;
-    }
+    finally{
+	x = x * 2;
+}
     return x;
   }
 }

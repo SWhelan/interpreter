@@ -82,7 +82,7 @@
 (check-expect (interpret "tests/Part4Test11.txt" "A") 15)
 (check-expect (interpret "tests/Part4Test12.txt" "A") 125)
 ;(check-expect (interpret "tests/Part4Test13.txt" "A") 100)
-;(check-expect (interpret "tests/Part4Test14.txt" "A") 2000400)
+(check-expect (interpret "tests/Part4Test14.txt" "A") 2000400)
 (check-expect (interpret "tests/Part4Test15.txt" "Pow") 64)
 
 (generate-report)
