@@ -2,21 +2,19 @@
 ; Michael Rosenfield mer95
 ; Sarah Whelan slw96
 
-; Part 3
+; Part 4
 
 (load "classParser.scm")
 (load "lex.scm")
 
-;main interpret function
+;main interpret function calls the main function of the class specified in the invocation
 (define interpret
   (lambda (filename classname)
-    (lookup 'return (stateFunctionCall '(funcall main) 
-                                       (interpretClasses (parser filename) (initialEmpty)) 
-                                       (string->symbol classname) 
-                                       (lambda (v) v) 
-                                       (lambda (v) v))
+    (lookup 'return 
+            (stateFunctionCall '(funcall main) (interpretClasses (parser filename) (initialEmpty)) (string->symbol classname) (lambda (v) v) (lambda (v) v))
             (string->symbol classname))))
 
+;goes through each class (now the only thing allowed in the global context) 
 (define interpretClasses
   (lambda (l state)
     (cond
@@ -24,16 +22,7 @@
       ((eq? (car l) 'class)(decideStateClass (classBody l) (Add (className l) (makeClass l) state) (className l) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)(lambda (v) v)))
       (else (interpretClasses (cdr l) (interpretClasses (car l) state))))))
 
-(define initialEmpty
-  (lambda ()
-    (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
-
-(define makeClass
-  (lambda (l)
-    (cond
-      ((null? (classHeader l)) (cons (classHeader l) (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '())))))
-      (else (cons (car (cdr (classHeader l)))  (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '()))))))))
-
+;creates a closure for each class in the style '(ParentClassName((fieldNames)(fieldValues))((methodNames)(methodClosures))((initialFields)(initialFieldValues)))
 (define decideStateClass
   (lambda (l state className return continue break exit catch)
     (let ([class (lookup className state className)])
@@ -44,7 +33,7 @@
      ((eq? (operator l) 'static-var)(stateDeclarationClasses l state className return continue break exit catch))
      (else (return state))))))
 
-;handles variable declarations
+;handles field declarations per class
 (define stateDeclarationClasses
   (lambda (l state className return continue break exit catch)
     (let ([class (lookup className state className)])
@@ -52,24 +41,6 @@
       ((not (null? (lookupLocal (leftoperand l) (topLayer state)))) (error 'variableAlreadyDeclared))
       ((null? (cdr (cdr l))) (return (Update className (cons (classParent class) (cons (Add (leftoperand l) 'declared (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))
       (else (return (Update className (cons (classParent class) (cons (Add (leftoperand l) (getValue (rightoperand l) state className catch) (classFields class)) (cons (classMethods class) (cons (classInitials class) '())))) state)))))))
-
-
-(define parserOutput
-  (lambda (filename classname)
-    (parser filename)))
-
-
-;the default state
-(define initialStateWithReturn
-  (lambda ()
-    (cons '(true false return) (cons (cons (box #t) (cons (box #f)(cons (box 'noReturnValueSet) '()))) '()))))
-
-;the additonal layer for each function call
-(define initialState
-  (lambda ()
-    (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
-
-;;;;;; Interpret Each Class
 
 ;decide state determines and changes the state of a statement
 (define decideState
@@ -85,12 +56,7 @@
      ((eq? (operator l) 'var) (stateDeclaration l state className return continue break exit catch))
      ((eq? (operator l) 'if) (stateIf l state className return continue break exit catch))
      ((eq? (operator l) 'break) (break state))
-     ((eq? (operator l) 'try) (stateBlock (tryBody l) state className 
-                                          (lambda (v) (stateBlock (finallyBody l) state className return continue break exit catch))
-                                          continue break exit 
-                                          (lambda (v) (stateBlock (catchBody l) (Add (exceptionName l) v state) className
-                                                                  return
-                                                                  continue break exit catch))))
+     ((eq? (operator l) 'try) (stateTry l state className return continue break exit catch))
      ((eq? (operator l) 'throw) (catch (getValue (cadr l) state className catch)))
      ((eq? (operator l) 'begin) (stateBlock l (addLayer state) className return continue break exit catch))
      ((eq? (operator l) 'continue) (continue (removeLayer state)))
@@ -98,12 +64,7 @@
      (else (return state))
      )))
 
-     (define exceptionName
-       (lambda (l)
-         (caadr (caddr l))))
-
-
-;handles return statements by exiting to the beginning of the program (using the exit continuation set at the inital call of stateDecide)
+;handles return statements by exiting to the beginning of the program (using the exit continuation set at the inital call of decideState)
 (define stateReturn
   (lambda (l state className return continue break exit catch)
     (cond
@@ -172,38 +133,22 @@
   (lambda (l state className return catch)
     (let ([class (getClass l state className)])
       (let ([currentClassName (getCurrentClassName l state className)])
-      (let ([closure (getClosure l state className)])
-    (cond
-      ;((eq? (lookup (functionCallName l) (classMethods class) className) '()) (error 'illegalFunctionCall))
-      (else (decideState (functionClosureBody closure)
-                         (copyParams (functionCallParamList l) state (functionClosureParamList closure)
-                                     (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
-                                     currentClassName catch)
-                         currentClassName
-                         (lambda (v) (return state))
-                         (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) catch))))))))
+        (let ([closure (getMethodClosure l state className)])
+          (decideState (functionClosureBody closure)
+                       (copyParams (functionCallParamList l) state (functionClosureParamList closure)
+                                   (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
+                                   currentClassName catch)
+                       currentClassName
+                       (lambda (v) (return state))
+                       (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) catch))))))
 
-(define getCurrentClassName
-  (lambda (l state className)
-    (cond
-      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (classParent (lookup className state className)))
-      ((list? (functionCallName l))(leftoperand (functionCallName l)))
-      (else className))))
-  
-(define getClass
-  (lambda (l state className)
-    (cond
-      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (lookupLocal (classParent (lookup className state className)) state))
-      ((list? (functionCallName l))(lookupLocal (leftoperand (functionCallName l)) state))
-      (else (lookup className state className)))))
-
-(define getClosure
-  (lambda (l state className)
-    (cond
-      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super))(lookupInClassMethods (rightoperand (functionCallName l)) state (classParent (lookupLocal className state))))
-      ((list? (functionCallName l))(lookupInClassMethods (rightoperand (functionCallName l)) state (leftoperand (functionCallName l))))
-      (else (lookupInClassMethods (functionCallName l) state className)))))
-          
+;handles the continuation changes for the try statements 
+(define stateTry
+  (lambda (l state className return continue break exit catch)
+    (decideState (tryBody l) state className 
+                 (lambda (v) (decideState (finallyBody l) state className return continue break exit catch)) continue break exit
+                 (lambda (v) (decideState (catchBody l) (Add (exceptionName l) v state) className return continue break exit catch))
+                 )))          
 
 ;;;;;; Value
 
@@ -273,6 +218,32 @@
 
 ;;;;;; Function Helpers
 
+;function helpers involving class
+
+;current class name for function call
+(define getCurrentClassName
+  (lambda (l state className)
+    (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (classParent (lookup className state className)))
+      ((list? (functionCallName l))(leftoperand (functionCallName l)))
+      (else className))))
+
+;get class closure for function call
+(define getClass
+  (lambda (l state className)
+    (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super)) (lookupLocal (classParent (lookup className state className)) state))
+      ((list? (functionCallName l))(lookupLocal (leftoperand (functionCallName l)) state))
+      (else (lookup className state className)))))
+
+;get method closure for function call
+(define getMethodClosure
+  (lambda (l state className)
+    (cond
+      ((and (list? (functionCallName l)) (eq? (leftoperand (functionCallName l)) 'super))(lookupInClassMethods (rightoperand (functionCallName l)) state (classParent (lookupLocal className state))))
+      ((list? (functionCallName l))(lookupInClassMethods (rightoperand (functionCallName l)) state (leftoperand (functionCallName l))))
+      (else (lookupInClassMethods (functionCallName l) state className)))))
+
 ;make a function closure to store in the environment
 (define makeClosure
   (lambda (body params state)
@@ -332,6 +303,13 @@
     (cond 
       ((null? (cdr l)) '())
       (else (cons (car l) (removeLast (cdr l)))))))
+
+;;;;;; Class Helpers
+(define makeClass
+  (lambda (l)
+    (cond
+      ((null? (classHeader l)) (cons (classHeader l) (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '())))))
+      (else (cons (car (cdr (classHeader l)))  (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '()))))))))
 
 ;;;;;; Environment
 
@@ -497,6 +475,7 @@
 (define classHeader caddr)
 (define classBody cadddr)
 
+;abstractions for try/catch
 (define tryBody cadr)
 (define catchBody 
   (lambda (l)
@@ -508,5 +487,11 @@
     (cond
       ((null? (cadddr l)) (cadddr l))
       (else (cadr (cadddr l))))))
+(define exceptionName
+  (lambda (l)
+    (caadr (caddr l))))
 
-         
+;;;;;; Initial State
+(define initialEmpty
+  (lambda ()
+    (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
