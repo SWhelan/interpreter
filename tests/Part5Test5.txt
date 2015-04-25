@@ -1,0 +1,58 @@
+class A {
+  static var count = 0;
+
+  static function subtract(a, b) {
+    if (a < b) {
+       throw b - a;
+    }
+    else
+       return a - b;
+  }
+}
+
+class B extends A {
+  static function divide(a, b) {
+    if (b == 0)
+      throw a;
+    else
+      return a / b;
+  }
+
+  static function reduce(a, b) {
+    while (a > 1 || a < -1) {
+      try {
+        a = divide(a, b);
+        if (a == 2)
+          break;
+      }
+      catch (e) {
+        return subtract(a, b); 
+      }
+      finally {
+        count = count + 1;
+      }
+    }
+    return a;
+  }
+}
+
+class C {
+  static function main() {
+    var x;
+
+    try {
+      x = B.reduce(10, 5);
+      x = x + B.reduce(81, 3);
+      x = x + B.reduce(5, 0);
+      x = x + B.reduce(-2, 0);
+      x = x + B.reduce(12, 4);
+    }
+    catch (a) {
+      x = x * a;
+    }
+    finally {
+      x = -1 * x;
+    }
+    return x - A.count * 100;
+  }
+}

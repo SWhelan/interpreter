@@ -1,0 +1,15 @@
+class A {
+  var value = 10;
+
+  static function main() {
+    try {
+      var a = new A();
+      a.value = 100;
+      throw new A();
+      return a.value;
+    }
+    catch (a) {
+      return a.value;
+    }
+  }
+}

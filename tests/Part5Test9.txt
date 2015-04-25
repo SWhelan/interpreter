@@ -1,9 +1,9 @@
 class A {
 
-  var a = 100;
+  var x = 100;
 
   function add(x) {
-    return this.a;
+    return this.x + x;
   }
 
   static function main() {
