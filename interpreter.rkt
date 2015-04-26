@@ -354,6 +354,30 @@
 (define dotOperatorForFunctionCallsReturnsState
   (lambda (l state className catch)
     (cond
+            ;if the left hand side is super
+      ((eq? (leftoperand (leftoperand l)) 'super)
+       (lookupLocal 'return 
+                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                       state 
+                                       ;change the class name of the function call to the class parent that is calling the function
+                                       (classParent (lookupLocal className state))
+                                       (lambda (v) v) catch)))
+            ;the left hand side of the dot is 'this and it is calling a non static method
+      ((and (eq? (leftoperand (leftoperand l)) 'this) (needsThis? l state className))
+                    (stateNonStaticFunctionCall 
+                     (createFunctionCallWithTHIS l state)
+                     state
+                     (classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
+                     (lambda (v) v)
+                     catch
+                     (getTHISName (lookupLocal 'this state))))
+      ;the left hand side of the dot is 'this and it is calling a static method
+      ((eq? (leftoperand (leftoperand l)) 'this)
+                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                       state 
+                                       ;change the class name of the function call to the class parent that is calling the function
+                                       (classNameOfObject (getTHISObject (lookupLocal 'this state)))
+                                       (lambda (v) v) catch))
       ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
       ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
                  (stateNonStaticFunctionCall 
@@ -370,14 +394,6 @@
                                     ;change the class name of the function call to the class that is calling the function
                                     (classNameOfObject (lookup (leftoperand (leftoperand l)) state className)) 
                                     (lambda (v) v) catch))
-      ;if the left hand side is super
-      ((eq? (leftoperand (leftoperand l)) 'super)
-       (lookupLocal 'return 
-                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
-                                       state 
-                                       ;change the class name of the function call to the class parent that is calling the function
-                                       (classParent (lookupLocal className state))
-                                       (lambda (v) v) catch)))
       ;if the left hand side is a class 
       ((eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'class)
        (stateFunctionCall l state className (lambda (v) v) catch)))))
@@ -386,6 +402,32 @@
 (define dotOperatorForFunctionCalls
   (lambda (l state className catch)
     (cond
+            ;if the left hand side is 'super and it is calling a static method
+      ((eq? (leftoperand (leftoperand l)) 'super)
+       (lookupLocal 'return 
+                    (stateNonStaticFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                       state 
+                                       ;change the class name of the function call to the class parent that is calling the function
+                                       (classParent (lookupLocal className state))
+                                       (lambda (v) v) catch)))
+      ;the left hand side of the dot is 'this and it is calling a non static method
+      ((and (eq? (leftoperand (leftoperand l)) 'this) (needsThis? l state className))
+       (lookupLocal 'return
+                    (stateNonStaticFunctionCall 
+                     (createFunctionCallWithTHIS l state)
+                     state
+                     (classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
+                     (lambda (v) v)
+                     catch
+                     (getTHISName (lookupLocal 'this state)))))
+      ;the left hand side of the dot is 'this and it is calling a static method
+      ((eq? (leftoperand (leftoperand l)) 'this)
+       (lookupLocal 'return 
+                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                       state 
+                                       ;change the class name of the function call to the class parent that is calling the function
+                                       (classNameOfObject (getTHISObject (lookupLocal 'this state)))
+                                       (lambda (v) v) catch)))
       ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
       ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
               (lookupLocal 'return
@@ -404,14 +446,6 @@
                                     ;change the class name of the function call to the class that is calling the function
                                     (classNameOfObject (lookup (leftoperand (leftoperand l)) state className)) 
                                     (lambda (v) v) catch)))
-      ;if the left hand side is super
-      ((eq? (leftoperand (leftoperand l)) 'super)
-       (lookupLocal 'return 
-                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
-                                       state 
-                                       ;change the class name of the function call to the class parent that is calling the function
-                                       (classParent (lookupLocal className state))
-                                       (lambda (v) v) catch)))
       ;if the left hand side is a class 
       ((eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'class)
        (lookupLocal 'return (stateFunctionCall l state className (lambda (v) v) catch))))))
@@ -422,8 +456,12 @@
     (cons (operator l) ;'funcall
           (cons (rightoperand (leftoperand l)) ;function name (the righ hand side of the dot operator)
                 (append (cddr l) ;the current given arguments
+                        (cons 
+                        (cond
+                          ((eq? (leftoperand (leftoperand l)) 'this) (cons (lookupLocal 'this state) '()))
+                          (else 
                         ;a 'this instance (objectName (objectClassName (objectInstanceFields)))
-                        (cons (cons (leftoperand (leftoperand l)) (cons (lookupLocal (leftoperand (leftoperand l)) state) '())) '()))))))
+                        (cons (leftoperand (leftoperand l)) (cons (lookupLocal (leftoperand (leftoperand l)) state) '())))) '()))))))
 
 ;determines if a function has this in its list of parameters ie static or non static
 (define needsThis?
