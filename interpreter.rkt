@@ -73,7 +73,7 @@
      ((eq? (operator l) 'return) (stateReturn l state className return continue break exit catch))
      ((eq? (operator l) 'while) (stateWhile l state className return continue (lambda (v) (return (removeLayer v))) exit catch))
      ((eq? (operator l) 'function) (stateFunction l state className return continue break exit catch))
-     ((and (eq? (operator l) 'funcall) (list? (leftoperand l))) (return (dotOperatorForFunctionCalls l state className catch))) ;NOTE does this return a state?
+     ((and (eq? (operator l) 'funcall) (list? (leftoperand l))) (return (dotOperatorForFunctionCallsReturnsState l state className catch)))
      ((eq? (operator l) 'funcall) (stateFunctionCall l state className return catch))
      ((eq? (operator l) 'var) (stateDeclaration l state className return continue break exit catch))
      ((eq? (operator l) 'if) (stateIf l state className return continue break exit catch))
@@ -137,12 +137,14 @@
           ;that means the object/this that was passed in is not in the state except in the 'this' instance in the current layer
           ((eq? x 'this) (Update 
                           'this
-                          (updateInObject 
-                           (rightoperand (leftoperand l)) 
-                           (getValue (rightoperand l) state className catch) 
-                           (getTHISObject (lookupLocal 'this state)) 
-                           state)
-                          state))
+                          (cons (getTHISName (lookupLocal 'this state))
+                                (cons 
+                                 (updateInObject 
+                                  (rightoperand (leftoperand l)) 
+                                  (getValue (rightoperand l) state className catch) 
+                                  (getTHISObject (lookupLocal 'this state))
+                                  state) '()))
+                                state))
           ;if the left hand side of the dot operator is an object
           ((eq? (whatIsIt? (lookupLocal x state)) 'object) 
            ;update the value in that object and update the state with the new object
@@ -347,14 +349,46 @@
       ((eq? (whatIsIt? (lookup (leftoperand expression) state className)) 'class) 
        (getValue (rightoperand expression) state (leftoperand expression) catch)) 
       (else (getValue (rightoperand expression) state (leftoperand expression) catch)))))
-          
+   
+;handles dot operators that call functions
+(define dotOperatorForFunctionCallsReturnsState
+  (lambda (l state className catch)
+    (cond
+      ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
+      ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
+                 (stateNonStaticFunctionCall 
+                  (createFunctionCallWithTHIS l state)
+                  state
+                  (classNameOfObject (lookup (leftoperand (leftoperand l)) state className))
+                  (lambda (v) v)
+                  catch
+                  (leftoperand (leftoperand l))))
+      ;if the left hand side is an object a it is calling a static method call the function normally
+      ((eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object)
+                 (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                    state 
+                                    ;change the class name of the function call to the class that is calling the function
+                                    (classNameOfObject (lookup (leftoperand (leftoperand l)) state className)) 
+                                    (lambda (v) v) catch))
+      ;if the left hand side is super
+      ((eq? (leftoperand (leftoperand l)) 'super)
+       (lookupLocal 'return 
+                    (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
+                                       state 
+                                       ;change the class name of the function call to the class parent that is calling the function
+                                       (classParent (lookupLocal className state))
+                                       (lambda (v) v) catch)))
+      ;if the left hand side is a class 
+      ((eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'class)
+       (stateFunctionCall l state className (lambda (v) v) catch)))))
+
 ;handles dot operators that call functions
 (define dotOperatorForFunctionCalls
   (lambda (l state className catch)
     (cond
       ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
       ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
-              (lookupLocal 'return 
+              (lookupLocal 'return
                  (stateNonStaticFunctionCall 
                   (createFunctionCallWithTHIS l state)
                   state
