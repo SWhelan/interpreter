@@ -73,7 +73,7 @@
      ((eq? (operator l) 'var) (stateDeclaration l state className return continue break exit catch))
      ((eq? (operator l) 'if) (stateIf l state className return continue break exit catch))
      ((eq? (operator l) 'break) (break state))
-     ((eq? (operator l) 'try) (stateTry l state className return continue break exit catch))
+     ((eq? (operator l) 'try) (stateTry (cdr l) state className return continue break exit catch))
      ((eq? (operator l) 'throw) (catch (getValue (cadr l) state className catch)))
      ((eq? (operator l) 'begin) (stateBlock l (addLayer state) className return continue break exit catch))
      ((eq? (operator l) 'continue) (continue (removeLayer state)))
@@ -175,13 +175,37 @@
                        (lambda (v) (return state))
                        (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) catch))))))
 
-;handles the continuation changes for the try statements 
 (define stateTry
   (lambda (l state className return continue break exit catch)
-    (decideState (tryBody l) state className 
-                 (lambda (v) (decideState (finallyBody l) state className return continue break exit catch)) continue break exit
-                 (lambda (v) (decideState (catchBody l) (add (exceptionName l) v state) className return continue break exit catch))
-                 )))
+    ((lambda (try-state)
+       (execute-Finally (cdr l) try-state className return continue break exit catch))
+       (execute-Try l state className return continue break exit catch))))
+
+(define execute-Try
+  (lambda (l state className return continue break exit catch)
+    (call/cc
+     (lambda (throw-without-catch)
+       (removeLayer (stateBlock  (car l) (addLayer state) className return continue break exit 
+                                 (lambda (v) (throw-without-catch (execute-Catch v (cdr l) state className return continue break exit catch)))))))))
+
+(define execute-Catch
+  (lambda (e-value l state className return continue break exit catch)
+    ((lambda (new-state)
+       (cond
+         ((null? l) state)
+         ((eq? (caar l) 'catch) (removeLayer (stateBlock (caddr (car l)) new-state className return continue break exit catch)))))
+    (add 'e e-value (addLayer state)))))
+
+(define execute-Finally
+   (lambda (l state className return continue break exit catch)
+     (cond
+       ((or (null? (car l)) (null? l)) (return state))
+       ((eq? (caar l) 'catch) (execute-Finally (cdr l) state className return continue break exit catch))
+       (else (return (removeLayer (stateBlock (finally-body l) (addLayer state) className return continue break exit catch)))))))
+
+(define finally-body
+  (lambda (finally-block)
+    (cadr (car finally-block))))
 
 ;makes new objects
 (define stateNew
