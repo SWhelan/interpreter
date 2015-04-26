@@ -1,13 +1,25 @@
-class A {
+class Rectangle {
+  static var width = 10;
+  static var height = 12;
 
-  var a = 100;
+  static function area() {
+    var a = width * height;
+    return a;
+  }
 
-  function add(x) {
-    return this.a;
+  static function setSize(x, y) {
+    width = x;
+    height = y;
+  }
+}
+
+class Square extends Rectangle {
+  static function setSize(x) {
+    super.setSize(x, x);
   }
 
   static function main() {
-    var a = new A();
-    return a.add(25);
+    setSize(20);
+    return area();
   }
 }
