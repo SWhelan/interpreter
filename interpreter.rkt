@@ -19,7 +19,7 @@
   (lambda (l state)
     (cond
       ((null? l) state)
-      ((eq? (car l) 'class)(decideStateClass (classBody l)(add (className l) (makeClass l) state) (className l) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)(lambda (v) v)))
+      ((eq? (car l) 'class)(decideStateClass (classBody l)(add (className l) (makeClass l state) state) (className l) (lambda (v) v) (lambda (v) (v)) (lambda (v) v) (lambda (v) v)(lambda (v) v)))
       (else (interpretClasses (cdr l) (interpretClasses (car l) state))))))
 
 ;creates a closure for each class in the style:
@@ -671,11 +671,15 @@
 
 ;;;;;; Class Helpers
 (define makeClass
-  (lambda (l)
+  (lambda (l state)
     (cond
-      ((null? (classHeader l)) (cons (classHeader l) (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '())))))
-      (else (cons (car (cdr (classHeader l)))  (cons (initialEmpty) (cons (initialEmpty) (cons (initialEmpty) '()))))))))
-
+      ((null? (classHeader l)) (cons (classHeader l) (cons emptyState (cons emptyState (cons emptyState '())))))
+      (else (cons 
+             (parentClassName l); the parent class' name
+             (cons (classFields (lookupLocal (parentClassName l) state)) (cons (classMethods (lookupLocal (parentClassName l) state)) (cons (classInitials (lookupLocal (parentClassName l) state)) '()))))))))
+(define parentClassName
+  (lambda (l) 
+  (car (cdr (classHeader l)))))
 ;;;;;; Environment
 
 (define lookup
@@ -742,7 +746,7 @@
               '()))))))
 
 ;plain old add adds to back
-(define add
+(define addToBack
   (lambda (name value state)
     (cond 
       ((or (null? (car state))(atom? (singleLayerTest state)))(add-helper name value state))
@@ -764,7 +768,7 @@
              '()))))))
 
 ;add a variable to the state handles multiple layers
-(define addToFront
+(define add
   (lambda (name value state)
     (cond 
       ((or (null? (car state))(atom? (singleLayerTest state)))(addToFrontHelper name value state))
@@ -873,3 +877,5 @@
 (define initialEmpty
   (lambda ()
     (cons '(true false) (cons (cons (box #t) (cons (box #f) '())) '()))))
+
+(define emptyState '(()()))
