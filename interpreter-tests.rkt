@@ -97,7 +97,7 @@
 (check-expect (interpret "tests/Part5Test10.txt" "A") 36)
 (check-expect (interpret "tests/Part5Test11.txt" "A") 54)
 (check-expect (interpret "tests/Part5Test12.txt" "C") 26)
-;(check-expect (interpret "tests/Part5Test13.txt" "Square") 117)
+(check-expect (interpret "tests/Part5Test13.txt" "Square") 117)
 ;(check-expect (interpret "tests/Part5Test14.txt" "Square") 32)
 ;(check-expect (interpret "tests/Part5Test15.txt" "List") 15)
 (check-expect (interpret "tests/Part5Test16.txt" "Box") 16)

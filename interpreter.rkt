@@ -89,10 +89,11 @@
 ;handles return statements by exiting to the beginning of the program (using the exit continuation set at the inital call of decideState)
 (define stateReturn
   (lambda (l state className return continue break exit catch)
-    (cond
-      ((eq? (getValue (cdr l) state className catch) '#t) (exit (add 'return 'true state)))
-      ((eq? (getValue (cdr l) state className catch) '#f) (exit (add 'return 'false state)))
-      (else (exit (add 'return (getValue (cdr l) state className catch) state))))))
+    (let ([value (getValue (cdr l) state className catch)])
+      (cond
+        ((eq? value '#t) (exit (add 'return 'true state)))
+        ((eq? value '#f) (exit (add 'return 'false state)))
+        (else (exit (add 'return value state)))))))
 
 ;handles variable declarations
 (define stateDeclaration
@@ -202,7 +203,7 @@
   (lambda (l state className return continue break exit catch)
     (let ([class (lookup className state className)])
     (return (Update className (cons (classParent class) 
-                  (cons (classFields class) (cons (add (functionName l) (makeClosure (functionBody l) (functionParamList l) state) (classMethods class))
+                  (cons (classFields class) (cons (add (functionName l) (makeClosure (functionBody l) (functionParamList l) state className) (classMethods class))
                                                   (cons (classInitials class) '())))) state)))))
 
 ;handles function definitions for non static functions - the diffence being adding a 'this reference to the parameter list in the closure
@@ -210,7 +211,7 @@
   (lambda (l state className return continue break exit catch)
     (let ([class (lookup className state className)])
     (return (Update className (cons (classParent class) 
-                  (cons (classFields class) (cons (add (functionName l) (makeClosure (functionBody l) (append (functionParamList l) (cons 'this '()) ) state) (classMethods class))
+                  (cons (classFields class) (cons (add (functionName l) (makeClosure (functionBody l) (append (functionParamList l) (cons 'this '()) ) state className) (classMethods class))
                                                   (cons (classInitials class) '())))) state)))))
 
 ;evaluate a static functioncall
@@ -286,21 +287,22 @@
   (lambda (className state)
     (let ([parentClassName (classParent(lookupLocal className state))])
       (cond 
-        ((null? parentClassName) (cons className (cons (makeObjectHelper className state) '())))
+        ;((null? parentClassName) (cons className (cons (makeObjectHelper className state) '())))
         (else (cons className (cons (makeObjectHelper className state) '())))))))
 
 (define makeObjectHelper
   (lambda (className state)
-    (let ([parentClassName (classParent(lookup className state className))])
-      (cond
-      ((null? parentClassName) (valueList (classInitials (lookup className state className))))
-      (else (append (valueList (classInitials (lookup className state className))) (makeObjectHelper parentClassName state)))))))
+    ;(let ([parentClassName (classParent(lookup className state className))])
+      (reverse (valueList (classInitials (lookup className state className))))))
+      ;(cond
+      ;((null? parentClassName) (reverse (valueList (classInitials (lookup className state className)))))
+      ;(else (append (reverse (valueList (classInitials (lookup className state className)))) (makeObjectHelper parentClassName state)))))))
                               
 
 ;gets the index of the value in the object
 (define getIndex
   (lambda (a l)
-    (getIndexHelp a (reverse l))))
+    (- (- (numElements l) 1) (getIndexHelp a l))))
 
 ;helper require to reverse the input and then loop
 (define getIndexHelp
@@ -316,12 +318,12 @@
 
 ;looksup a given variable a in an object
 (define lookupInObject
-  (lambda (a object state)
+  (lambda (a object state className)
       (cond
-        ((null? (getIndex a (variableList (classInitials (lookup (classNameOfObject object) state (classNameOfObject object)))))) (lookupInClassFields a state (classNameOfObject object)))
+        ((null? (getIndex a (variableList (classInitials (lookupLocal className state))))) (lookupInClassFields a state className))
         (else (unbox 
                   (getInstanceValue 
-                   (getIndex a (variableList (classInitials (lookup (classNameOfObject object) state (classNameOfObject object))))) 
+                   (getIndex a (variableList (classInitials (lookupLocal className state))))
                    (valuesFromObject object)))))))
 
 ;update a given variable a to value x
@@ -375,11 +377,11 @@
       ;if it is super.field return the value of the field using the className's parent
       ((eq? (leftoperand expression) 'super) (getValue (rightoperand expression) state (classParent (lookup className state className)) catch))
       ;if it is this.field return the value of the field in the instance of this in the state
-      ((eq? (leftoperand expression) 'this) (lookupInObject (rightoperand expression) (getTHISObject (lookupLocal 'this state)) state))
+      ((eq? (leftoperand expression) 'this) (lookupInObject (rightoperand expression) (getTHISObject (lookupLocal 'this state)) state className))
       ;if the left hand side is an object
       ((eq? (whatIsIt? (lookup (leftoperand expression) state className)) 'object) 
        ;lookup the value in that object
-       (lookupInObject (rightoperand expression) (lookup (leftoperand expression) state className) state))
+       (lookupInObject (rightoperand expression) (lookup (leftoperand expression) state className) state className))
       ;if the left hand side is a class lookup the value in the class
       ((eq? (whatIsIt? (lookup (leftoperand expression) state className)) 'class) 
        (getValue (rightoperand expression) state (leftoperand expression) catch)) 
@@ -441,12 +443,11 @@
       ((and (eq? (leftoperand (leftoperand l)) 'super) (needsThis? l state className))
        (lookupLocal 'return 
                     (stateNonStaticFunctionCall 
-                     ;(cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
-                     ;TODO THIS LINE 
-                     ;(cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (makeObject (classParent (lookupLocal className state)) state)  '())) '()))))
                      (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
                      state 
-                     (classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
+                     ;(classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
+                     (classParent (lookupLocal (getFunctionClass (getMethodClosure 
+                                        (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state className)) state))
                      (lambda (v) v)
                      catch
                      'this)))
@@ -456,7 +457,9 @@
                     (stateFunctionCall 
                      (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
                      state 
-                     (classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
+                     ;(classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
+                     (classParent (lookupLocal (getFunctionClass (getMethodClosure 
+                                        (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state className))))
                      (lambda (v) v)
                      catch)))
       ;the left hand side of the dot is 'this and it is calling a non static method
@@ -465,7 +468,9 @@
                     (stateNonStaticFunctionCall 
                      (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
                      state
-                     className;(classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
+                     ;(classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
+                     (getFunctionClass (getMethodClosure 
+                                        (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state (classNameOfObject (getTHISObject (lookupLocal 'this state)))))
                      (lambda (v) v)
                      catch
                      'this)))
@@ -475,15 +480,20 @@
                     (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
                                        state 
                                        ;change the class name of the function call to the class parent that is calling the function
-                                       (classNameOfObject (getTHISObject (lookupLocal 'this state)))
-                                       (lambda (v) v) catch)))
+                                       ;(classNameOfObject (getTHISObject (lookupLocal 'this state)))
+                                       (getFunctionClass (getMethodClosure 
+                                                          (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state (classNameOfObject (getTHISObject (lookupLocal 'this state)))))
+                                       (lambda (v) v) 
+                                       catch)))
       ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
       ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
               (lookupLocal 'return
                  (stateNonStaticFunctionCall 
                   (createFunctionCallWithTHIS l state)
                   state
-                  (classNameOfObject (lookup (leftoperand (leftoperand l)) state className))
+                  ;(classNameOfObject (lookup (leftoperand (leftoperand l)) state className))
+                  (getFunctionClass (getMethodClosure 
+                       (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state className))
                   (lambda (v) v)
                   catch
                   (leftoperand (leftoperand l)))))
@@ -493,11 +503,13 @@
                  (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
                                     state 
                                     ;change the class name of the function call to the class that is calling the function
-                                    (classNameOfObject (lookup (leftoperand (leftoperand l)) state className)) 
+                                    ;(classNameOfObject (lookup (leftoperand (leftoperand l)) state className)) 
+                                    (getFunctionClass (getMethodClosure 
+                                                       (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state className))
                                     (lambda (v) v) catch)))
       ;if the left hand side is a class 
       ((eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'class)
-       (lookupLocal 'return (stateFunctionCall l state className (lambda (v) v) catch))))))
+       (lookupLocal 'return (stateFunctionCall l state (leftoperand (leftoperand l)) (lambda (v) v) catch))))))
 
 ;recreates the function call string to pass
 (define createFunctionCallWithTHIS
@@ -521,10 +533,10 @@
   (lambda (expression state className catch)
        (cond
          ((number? expression) expression)
-         ((and (and (atom? expression) (eq? (lookup expression state className) '())) (not (null? (lookupLocal 'this state)))) (lookupInObject expression (getTHISObject (lookupLocal 'this state)) state))
+         ((and (and (atom? expression) (eq? (lookup expression state className) '())) (not (null? (lookupLocal 'this state)))) (lookupInObject expression (getTHISObject (lookupLocal 'this state)) state className))
          ((and (atom? expression) (eq? (lookup expression state className) 'declared)) (error 'usingBeforeAssigning))
-         ((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))
-         ((atom? expression) (lookup expression state className))
+         ((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))         
+         ((atom? expression) (lookup expression state className))         
          ((eq? (operator expression) 'dot) (dotOperator expression state className catch))
          ((eq? (operator expression) 'new) (makeObject className state))
          ((and (eq? (operator expression) 'funcall) (list? (leftoperand expression))) (dotOperatorForFunctionCalls expression state className catch))
@@ -546,7 +558,7 @@
          ((eq? '!= (operator expression))  (getTruth expression state className catch))
          ((eq? '== (operator expression))  (getTruth expression state className catch))
          ((eq? '>= (operator expression))  (getTruth expression state className catch))
-         ((eq? '< (operator expression))  (getTruth expression stat classNamee catch))
+         ((eq? '< (operator expression))  (getTruth expression state className catch))
          ((eq? '> (operator expression))  (getTruth expression state className catch))
          ((eq? '! (operator expression))  (getTruth expression state className catch))
          ((eq? '&& (operator expression))  (getTruth expression state className catch))
@@ -612,8 +624,8 @@
 
 ;make a function closure to store in the environment
 (define makeClosure
-  (lambda (body params state)
-    (cons params (cons body (cons (getNumLayers state) '())))))
+  (lambda (body params state className)
+    (cons params (cons body (cons (getNumLayers state) (cons className '()))))))
 
 ;copy the actual paramters into the formal parameters
 (define copyParams
@@ -690,6 +702,10 @@
       ((and (null? (lookupLocal name state)) (and (null? (lookupInClassFields name state className)) (not (null? (classParent (lookupLocal className state)))))) (lookup name state (classParent (lookupLocal className state))))
       ((null? (lookupLocal name state)) (lookupInClassFields name state className))
       (else (lookupLocal name state)))))
+;    (cond
+;      ((not (null? (lookupLocal name state))) (lookupLocal name state))
+ ;     ((and (not (null? (lookupLocal 'this state))) (not (null? (lookupInObject name (getTHISObject (lookupLocal 'this state)) state className))))(lookupInObject name (getTHISObject (lookupLocal 'this state)) state className))
+  ;    (else (lookupInClassFields name state className)))))
 
 (define lookupInParentClass
   (lambda (name state className)
@@ -835,6 +851,7 @@
 (define functionClosureBody cadr)
 (define functionClosureParamList car)
 (define getFunctionClosureLayerNum caddr)
+(define getFunctionClass cadddr)
 
 ;abstractions for the function calls
 (define functionCallName cadr)

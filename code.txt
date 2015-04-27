@@ -7,28 +7,33 @@ class A {
   }
 
   function m2() {
-    return x;
+    return x+y;
   }
-
-  static function main() {
-   var a1 = new A();
-   return a1.m();
-}
 }
 
 class B extends A {
-  var y = 3;
-  var z = 4;
+  var y = 22;
+  var z = 3;
 
-function m(){
-return super.m();
+  function m() {
+    return super.m();
+  }
+
+  function m2() {
+    return x+y+z;
+  }
 }
-function m2 (){
-  return y;
-}
+
+class C extends B {
+  var y = 222;
+  var w = 4;
+
+  function m() {
+    return super.m();
+  }
 
   static function main() {
-   var a1 = new A();
-   return a1.m();
-}
+    var c = new C();
+    return c.m();
+  }
 }
