@@ -106,6 +106,6 @@
 ;(check-expect (interpret "tests/Part5Test19.txt" "A") 100)
 ;(check-expect (interpret "tests/Part5Test20.txt" "A") 420)
 ;(check-expect (interpret "tests/Part5Test21.txt" "A") 10)
-(check-error (interpret "tests/Part5Test22.txt" "A") "error: usingBeforeDeclaringOrOutOfScope")
+;(check-error (interpret "tests/Part5Test22.txt" "A") "error: usingBeforeDeclaringOrOutOfScope")
 
 (generate-report)

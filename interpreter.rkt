@@ -216,8 +216,8 @@
 ;evaluate a static functioncall
 (define stateFunctionCall
   (lambda (l state className return catch)
-    (let ([class (getClass l state className)])
-      (let ([currentClassName (getCurrentClassName l state className)])
+    (let ([currentClassName (getCurrentClassName l state className)])
+      (let ([class (getClass l state currentClassName)])
         (let ([closure (getMethodClosure l state className)])
           (decideState (functionClosureBody closure)
                        (copyParams (functionCallParamList l) state (functionClosureParamList closure)
@@ -233,7 +233,7 @@
   (lambda (l state className return catch objectName)
     (let ([class (getClass l state className)])
       (let ([currentClassName (getCurrentClassName l state className)])
-        (let ([closure (getMethodClosure l state className)])
+        (let ([closure (getMethodClosure l state currentClassName)])
           (decideState (functionClosureBody closure)
                        (copyParams (functionCallParamList l) state (functionClosureParamList closure)
                                    (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
@@ -284,7 +284,7 @@
 ;makes new objects
 (define makeObject
   (lambda (className state)
-    (let ([parentClassName (classParent(lookup className state className))])
+    (let ([parentClassName (classParent(lookupLocal className state))])
       (cond 
         ((null? parentClassName) (cons className (cons (makeObjectHelper className state) '())))
         (else (cons className (cons (makeObjectHelper className state) '())))))))
@@ -293,8 +293,8 @@
   (lambda (className state)
     (let ([parentClassName (classParent(lookup className state className))])
       (cond
-      ((null? parentClassName) (reverse (valueList (classInitials (lookup className state className)))))
-      (else (append (reverse (valueList (classInitials (lookup className state className)))) (makeObjectHelper parentClassName state)))))))
+      ((null? parentClassName) (valueList (classInitials (lookup className state className))))
+      (else (append (valueList (classInitials (lookup className state className))) (makeObjectHelper parentClassName state)))))))
                               
 
 ;gets the index of the value in the object
@@ -443,12 +443,13 @@
                     (stateNonStaticFunctionCall 
                      ;(cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
                      ;TODO THIS LINE 
-                     (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'notImportant (cons (makeObject (classParent (lookupLocal className state)) state)  '())) '()))))
+                     ;(cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (makeObject (classParent (lookupLocal className state)) state)  '())) '()))))
+                     (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
                      state 
                      (classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
                      (lambda (v) v)
                      catch
-                     'notImportant)))
+                     'this)))
             ;if the left hand side is 'super and it is calling a static method
       ((eq? (leftoperand (leftoperand l)) 'super)
        (lookupLocal 'return 
@@ -464,7 +465,7 @@
                     (stateNonStaticFunctionCall 
                      (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
                      state
-                     (classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
+                     className;(classNameOfObject (getTHISObject (lookup (leftoperand (leftoperand l)) state className)))
                      (lambda (v) v)
                      catch
                      'this)))
@@ -520,6 +521,7 @@
   (lambda (expression state className catch)
        (cond
          ((number? expression) expression)
+         ((and (and (atom? expression) (eq? (lookup expression state className) '())) (not (null? (lookupLocal 'this state)))) (lookupInObject expression (getTHISObject (lookupLocal 'this state)) state))
          ((and (atom? expression) (eq? (lookup expression state className) 'declared)) (error 'usingBeforeAssigning))
          ((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))
          ((atom? expression) (lookup expression state className))
