@@ -111,6 +111,14 @@
       (cond
        ;if the assignment has a dot operator as the left hand side decide using dotOperatorForAssignments
       ((list? (leftoperand l)) (return (dotOperatorForAssignments l state className catch)))
+       ;if the variable isn't found error out
+      ((and (not (null? (lookupLocal 'this state))) (not (null? (lookupInObject (leftoperand l) (getTHISObject (lookupLocal 'this state)) state className))))
+       (return (Update 'this (cons (getTHISName (lookupLocal 'this state))
+                                   (cons (updateInObject 
+                                    (leftoperand l) 
+                                    (getValue (rightoperand l) state className catch) 
+                                    (getTHISObject (lookupLocal 'this state)) state) '()))
+                                   state)))
       ;if the variable isn't found error out
       ((null? variable) (error 'errorUsingBeforeDeclaringOrOutOfScope))
       ;if the variable is declared or assigned a value AND in the fist/top layer of the state update the value
@@ -146,6 +154,7 @@
                                   (getTHISObject (lookupLocal 'this state))
                                   state) '()))
                                 state))
+          
           ;if the left hand side of the dot operator is an object
           ((eq? (whatIsIt? (lookupLocal x state)) 'object) 
            ;update the value in that object and update the state with the new object
@@ -391,7 +400,19 @@
 (define dotOperatorForFunctionCallsReturnsState
   (lambda (l state className catch)
     (cond
-            ;if the left hand side is super
+      ;if the left hand side is 'super and it is calling a non static method
+      ((and (eq? (leftoperand (leftoperand l)) 'super) (needsThis? l state className))
+       (lookupLocal 'return 
+                    (stateNonStaticFunctionCall 
+                     (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons (getTHISName (lookupLocal 'this state)) (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
+                     state 
+                     ;(classParent (lookupLocal className state));change the class name of the function call to the class parent that is calling the function
+                     (getFunctionClass(getMethodClosure 
+                                        (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state (classParent(lookupLocal (classNameOfObject (getTHISObject (lookupLocal 'this state))) state))))
+                     (lambda (v) v)
+                     catch
+                     'this)))
+      ;if the left hand side is super
       ((eq? (leftoperand (leftoperand l)) 'super)
        (lookupLocal 'return 
                     (stateFunctionCall (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) 
