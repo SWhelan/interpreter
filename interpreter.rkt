@@ -263,7 +263,7 @@
   (lambda (l state className return continue break exit catch)
     ((lambda (tryState)
        (executeFinally (cdr l) tryState className return continue break exit catch))
-       (executeTry l state className return continue break exit catch))))
+       (executeTry l state className return continue (lambda (v) (executeFinally (cdr l) state className return continue break exit catch)) exit catch))))
 
 (define executeTry
   (lambda (l state className return continue break exit catch)

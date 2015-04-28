@@ -89,7 +89,7 @@
 (check-expect (interpret "tests/Part5Test2.txt" "Square") 400)
 (check-expect (interpret "tests/Part5Test3.txt" "B") 530)
 (check-expect (interpret "tests/Part5Test4.txt" "B") 615)
-;(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff / infinite loop
+;(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff
 (check-expect (interpret "tests/Part5Test6.txt" "A") 15)
 (check-expect (interpret "tests/Part5Test7.txt" "A") 12)
 (check-expect (interpret "tests/Part5Test8.txt" "A") 110)
