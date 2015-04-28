@@ -484,7 +484,7 @@
                      (lambda (v) v)
                      catch)))
       ;the left hand side of the dot is 'this and it is calling a non static method
-      ((and (eq? (leftoperand (leftoperand l)) 'this) (needsThis? l state className))
+      ((and (eq? (leftoperand (leftoperand l)) 'this) (needsThis? l state (classNameOfObject (getTHISObject (lookupLocal 'this state)))))
        (lookupLocal 'return
                     (stateNonStaticFunctionCall 
                      (cons (operator l) (cons (rightoperand (leftoperand l)) (append (cddr l) (cons (cons 'this (cons (getTHISObject (lookupLocal 'this state)) '())) '()))))
@@ -507,14 +507,14 @@
                                        (lambda (v) v) 
                                        catch)))
       ;if the left hand side is an object and it is calling a non static method create the instance of this and pass it to the function call
-      ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state className))
+      ((and (eq? (whatIsIt? (lookupLocal (leftoperand (leftoperand l)) state)) 'object) (needsThis? l state (classNameOfObject (lookupLocal (leftoperand (leftoperand l)) state))))
               (lookupLocal 'return
                  (stateNonStaticFunctionCall 
                   (createFunctionCallWithTHIS l state)
                   state
                   ;(classNameOfObject (lookup (leftoperand (leftoperand l)) state className))
                   (getFunctionClass (getMethodClosure 
-                       (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state className))
+                       (cons (operator l) (cons (rightoperand (leftoperand l)) (cddr l))) state (classNameOfObject (lookupLocal (leftoperand (leftoperand l)) state))))
                   (lambda (v) v)
                   catch
                   (leftoperand (leftoperand l)))))
@@ -559,7 +559,7 @@
          ((and (atom? expression) (eq? (lookup expression state className) '())) (error 'usingBeforeDeclaringOrOutOfScope))         
          ((atom? expression) (lookup expression state className))         
          ((eq? (operator expression) 'dot) (dotOperator expression state className catch))
-         ((eq? (operator expression) 'new) (makeObject className state))
+         ((eq? (operator expression) 'new) (makeObject (leftoperand expression) state))
          ((and (eq? (operator expression) 'funcall) (list? (leftoperand expression))) (dotOperatorForFunctionCalls expression state className catch))
          ((eq? (operator expression) 'funcall) (lookupLocal 'return (stateFunctionCall expression state className (lambda (v) v) catch)))
          ((eq? '+ (operator expression)) (+ (getValue (leftoperand expression) state className catch)

@@ -89,7 +89,7 @@
 (check-expect (interpret "tests/Part5Test2.txt" "Square") 400)
 (check-expect (interpret "tests/Part5Test3.txt" "B") 530)
 (check-expect (interpret "tests/Part5Test4.txt" "B") 615)
-;(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff
+(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff / infinite loop
 (check-expect (interpret "tests/Part5Test6.txt" "A") 15)
 (check-expect (interpret "tests/Part5Test7.txt" "A") 12)
 (check-expect (interpret "tests/Part5Test8.txt" "A") 110)
@@ -99,13 +99,13 @@
 (check-expect (interpret "tests/Part5Test12.txt" "C") 26)
 ;(check-expect (interpret "tests/Part5Test13.txt" "Square") 117)
 ;(check-expect (interpret "tests/Part5Test14.txt" "Square") 32)
-(check-expect (interpret "tests/Part5Test15.txt" "List") 15)
-(check-expect (interpret "tests/Part5Test16.txt" "Box") 16)
+;(check-expect (interpret "tests/Part5Test15.txt" "List") 15)
+;(check-expect (interpret "tests/Part5Test16.txt" "Box") 16)
 ;(check-expect (interpret "tests/Part5Test17.txt" "List") 123456)
 ;(check-expect (interpret "tests/Part5Test18.txt" "List") 5285)
-;(check-expect (interpret "tests/Part5Test19.txt" "A") 100)
-;(check-expect (interpret "tests/Part5Test20.txt" "A") 420)
+(check-expect (interpret "tests/Part5Test19.txt" "A") 100)
+(check-expect (interpret "tests/Part5Test20.txt" "A") 420)
 ;(check-expect (interpret "tests/Part5Test21.txt" "A") 10)
-;(check-error (interpret "tests/Part5Test22.txt" "A") "error: usingBeforeDeclaringOrOutOfScope")
+;(check-error (interpret "tests/Part5Test22.txt" "A") "error: usingBeforeDeclaringOrOutOfScope") ;infinite loop
 
 (generate-report)

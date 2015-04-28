@@ -1,39 +1,31 @@
 class A {
-  var x = 1;
-  var y = 2;
-
-  function m() {
-    return this.m2();
-  }
-
-  function m2() {
-    return x+y;
-  }
-}
-
-class B extends A {
-  var y = 22;
-  var z = 3;
-
-  function m() {
-    return super.m();
-  }
-
-  function m2() {
-    return x+y+z;
-  }
-}
-
-class C extends B {
-  var y = 222;
-  var w = 4;
-
-  function m() {
-    return super.m();
+  static function divide(x, y) {
+    if (y == 0)
+      throw new Zero();
+    return x / y;
   }
 
   static function main() {
-    var c = new C();
-    return c.m();
+    var x;
+
+    try {
+      x = divide(10, 5) * 10;
+      x = x + divide(5, 0);
+    }
+    catch(e) {
+      x = e.getValue();
+    }
+    finally {
+      x = x + 100;
+    }
+    return x;
+  }
+}
+
+class Zero {
+  var value = 0;
+
+  function getValue() {
+    return value;
   }
 }
