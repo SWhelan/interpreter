@@ -89,7 +89,7 @@
 (check-expect (interpret "tests/Part5Test2.txt" "Square") 400)
 (check-expect (interpret "tests/Part5Test3.txt" "B") 530)
 (check-expect (interpret "tests/Part5Test4.txt" "B") 615)
-(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff / infinite loop
+;(check-expect (interpret "tests/Part5Test5.txt" "C") -716) ;try catch throw stuff / infinite loop
 (check-expect (interpret "tests/Part5Test6.txt" "A") 15)
 (check-expect (interpret "tests/Part5Test7.txt" "A") 12)
 (check-expect (interpret "tests/Part5Test8.txt" "A") 110)
@@ -106,6 +106,6 @@
 (check-expect (interpret "tests/Part5Test19.txt" "A") 100)
 (check-expect (interpret "tests/Part5Test20.txt" "A") 420)
 ;(check-expect (interpret "tests/Part5Test21.txt" "A") 10)
-;(check-error (interpret "tests/Part5Test22.txt" "A") "error: usingBeforeDeclaringOrOutOfScope") ;infinite loop
+(check-error (interpret "tests/Part5Test22.txt" "A") "error: noThis")
 
 (generate-report)

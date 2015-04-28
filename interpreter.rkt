@@ -229,13 +229,16 @@
     (let ([currentClassName (getCurrentClassName l state className)])
       (let ([class (getClass l state currentClassName)])
         (let ([closure (getMethodClosure l state className)])
-          (decideState (functionClosureBody closure)
-                       (copyParams (functionCallParamList l) state (functionClosureParamList closure)
-                                   (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
-                                   currentClassName catch)
-                       currentClassName
-                       (lambda (v) (return state))
-                       (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) catch))))))
+          (cond
+            ((member? 'this (functionClosureBody closure)) (error 'noThis))
+            (else 
+             (decideState (functionClosureBody closure)
+                          (copyParams (functionCallParamList l) state (functionClosureParamList closure)
+                                      (addLayer (getLastN state (getFunctionClosureLayerNum closure)))
+                                      currentClassName catch)
+                          currentClassName
+                          (lambda (v) (return state))
+                          (lambda (v) (return v)) (lambda (v) (return v)) (lambda (v) (return v)) catch))))))))
 
 
 ;evaluate a non static function call - the difference being upon function end update the 'this reference to the object and store in layer of calling function
@@ -836,6 +839,14 @@
       ((null? (variableList state)) state)
       ((atom? (singleLayerTest state)) state)
       (else (variableList state)))))
+
+(define member?
+  (lambda (a l)
+    (cond 
+      ((null? l) #f)
+      ((eq? a (car l)) #t)
+      ((list? (car l)) (or (member? a (car l)) (member? a (cdr l))))
+      (else (member? a (cdr l))))))
 
 ;;;;;; Abstraction
 
